@@ -1,3 +1,6 @@
+const { BitProficiency, MemSize, ReqFlag, ReqType, getMemSizes, getOperands, PartialAccess, ReqOperand, Requirement } = require("./logic");
+const { Leaderboard, AssetState } = require("./achievements")
+
 // title case helpers
 const TITLE_CASE_MINORS = new Set([
 	'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'from', 'how', 'if', 'in', "n'", "'n'",
@@ -104,7 +107,10 @@ const Feedback = Object.freeze({
 	ONE_CONDITION: { severity: FeedbackSeverity.WARN, desc: "One-condition achievements are dangerous and should be avoided.",
 		ref: ["https://docs.retroachievements.org/developer-docs/tips-and-tricks.html#achievement-creation-tips",], },
 	MISSING_DELTA: { severity: FeedbackSeverity.WARN, desc: "Achievements must contain a Delta to isolate the specific moment that an achievement should trigger.",
-		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
+		ref: [
+			'https://docs.retroachievements.org/developer-docs/delta-values.html',
+			'https://docs.retroachievements.org/developer-docs/why-delta.html',
+		], },
 	IMPROPER_DELTA: { severity: FeedbackSeverity.INFO, desc: "Proper use of Delta can help identify the precise moment that an achievement should trigger.",
 		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
 	BAD_PRIOR: { severity: FeedbackSeverity.WARN, desc: "Invalid use of Prior. See below for more information.",
@@ -255,14 +261,14 @@ function invert_chain(group, ri)
 	return res;
 }
 
-function generate_logic_stats(logic)
+function generate_logic_stats(logic, o)
 {
 	let stats = {};
 	stats.mem_length = -1;
 
 	// flattened version of the logic
 	const flat = [].concat(...logic.groups);
-	const operands = new Set(logic.getOperands());
+	const operands = new Set(o);
 	const comparisons = flat.filter(req => req.isComparisonOperator()).map(req => req.op);
 
 	// number of groups (number of alt groups is this minus 1)
@@ -278,7 +284,7 @@ function generate_logic_stats(logic)
 	// set of unique flags, comparisons, and sizes used in the achievement
 	stats.unique_flags = new Set(logic.getFlags());
 	stats.unique_cmps = new Set(comparisons);
-	stats.unique_sizes = new Set(logic.getMemSizes().map(x => BitProficiency.has(x) ? MemSize.BYTE : x));
+	stats.unique_sizes = new Set(getMemSizes(o).map(x => BitProficiency.has(x) ? MemSize.BYTE : x));
 
 	// list of all chained requirements
 	let chains = [];
@@ -368,13 +374,14 @@ function generate_leaderboard_stats(lb)
 	for (let block of ["START", "CANCEL", "SUBMIT", "VALUE"])
 	{
 		const tag = block.substring(0, 3);
-		stats[tag] = generate_logic_stats(lb.components[tag]);
+		let operands = getOperands(lb.components[tag].groups)
+		stats[tag] = generate_logic_stats(lb.components[tag], operands);
 	}
 
 	return stats;
 }
 
-function generate_code_note_stats(notes)
+function generate_code_note_stats(ach, notes)
 {
 	let stats = {};
 
@@ -391,7 +398,7 @@ function generate_code_note_stats(notes)
 	}
 
 	stats.notes_count = notes.length;
-	let all_addresses = current.set.getAchievements().reduce((a, e) => a.concat(e.logic.getAddresses()), []);
+	let all_addresses = ach.getAchievements().reduce((a, e) => a.concat(e.logic.getAddresses()), []);
 	let used_notes = notes.filter(x => all_addresses.some(y => x.contains(y)));
 
 	stats.notes_used = used_notes.length;
@@ -420,7 +427,7 @@ function generate_rich_presence_stats(rp)
 	return stats;
 }
 
-function generate_set_stats(set)
+function generate_set_stats(set, codeNotes, rp)
 {
 	let stats = {};
 	stats.achievement_count = set.achievements.size;
@@ -445,12 +452,12 @@ function generate_set_stats(set)
 	stats.avg_points = stats.achievement_count > 0 ? (stats.total_points / stats.achievement_count) : 0;
 
 	// all components used across all achievements
-	stats.all_flags = all_logic_stats.reduce((a, e) => a.union(e.unique_flags), new Set());
-	stats.all_cmps = all_logic_stats.reduce((a, e) => a.union(e.unique_cmps), new Set());
-	stats.all_sizes = all_logic_stats.reduce((a, e) => a.union(e.unique_sizes), new Set());
+	stats.all_flags = all_logic_stats.reduce((a, e) => [...new Set([...a, ...e.unique_flags])], new Set());
+	stats.all_cmps = all_logic_stats.reduce((a, e) => [...new Set([...a, ...e.unique_cmps])], new Set());
+	stats.all_sizes = all_logic_stats.reduce((a, e) => [...new Set([...a, ...e.unique_sizes])], new Set());
 
 	// number of achievements using bit operations, such as BitX and BitCount
-	stats.using_bit_ops = achievements.filter(ach => new Set(ach.feedback.stats.unique_sizes).intersection(BitProficiency).size > 0);
+	stats.using_bit_ops = achievements.filter(ach => [...ach.feedback.stats.unique_sizes].filter(value => BitProficiency.has(value)).size > 0)
 
 	// number of achievements using each feature
 	stats.using_alt_groups = achievements.filter(ach => ach.feedback.stats.alt_groups > 0);
@@ -479,7 +486,7 @@ function generate_set_stats(set)
 	stats.lb_instant_submission = leaderboards.filter(lb => lb.feedback.stats.is_instant_submission).length;
 	stats.lb_conditional_value = leaderboards.filter(lb => lb.feedback.stats.conditional_value).length;
 
-	if (current.notes.length > 0)
+	if (codeNotes.length > 0)
 	{
 		let addrs = new Map();
 		function _attach_source(addr, val)
@@ -497,8 +504,8 @@ function generate_set_stats(set)
 					_attach_source(addr, `📊 Leaderboard (${tag}): ${lb.title}`);
 
 		let displayMode = false, clause = 0;
-		if (current.rp && current.rp.text)
-			for (const line of current.rp.text.split(/\r\n|(?!\r\n)[\n-\r\x85\u2028\u2029]/g))
+		if (rp && rp.text)
+			for (const line of rp.text.split(/\r\n|(?!\r\n)[\n-\r\x85\u2028\u2029]/g))
 			{
 				if (line.toLowerCase().startsWith('Display:')) displayMode = true;
 				if (displayMode) for (const m of line.matchAll(/^(\?(.+)\?)?(.+)$/g))
@@ -513,27 +520,20 @@ function generate_set_stats(set)
 				}
 			}
 
-		stats.missing_notes = new Map([...addrs.entries()].filter(([x, _]) => !current.notes.some(note => note.contains(x))));
+		stats.missing_notes = new Map([...addrs.entries()].filter(([x, _]) => !codeNotes.some(note => note.contains(x))));
 	}
 
 	return stats;
 }
 
-function* check_deltas(logic)
+function* check_deltas(args)
 {
-	const DELTA_FEEDBACK = (
-		<ul>
-			<li><a href="https://docs.retroachievements.org/developer-docs/why-delta.html">Why should all achievements use Deltas?</a></li>
-			<li>Appropriate use of Delta includes all of the following conditions:</li>
-			<ul>
-				<li>There should be a <code>Delta</code> that is not part of <code>ResetIf</code>, <code>ResetNextIf</code>, or <code>PauseIf</code>.</li>
-				<li>...on a memory address for which there is a corresponding <code>Mem</code> constraint on the same address.</li>
-				<li>...in the core group or in <strong>all</strong> alt groups. There should be no way for the achievement to be triggered without a <code>Delta</code> being involved in some way.</li>
-			</ul>
-		</ul>
-	);
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
+	const DELTA_FEEDBACK = `Appropriate use of Delta includes all of the following conditions: There should be a Delta that is not part of ResetIf, ResetNextIf, or PauseIf on a memory address for which there is a corresponding Mem constraint on the same address in the core group or in all alt groups. There should be no way for the achievement to be triggered without a Delta being involved in some way.`;
 
-	if (!logic.getOperands().some(x => x.type == ReqType.DELTA))
+	if (!operands.some(x => x.type == ReqType.DELTA))
 	{
 		yield new Issue(Feedback.MISSING_DELTA, null, DELTA_FEEDBACK);
 		return;
@@ -605,11 +605,14 @@ function* check_deltas(logic)
 	yield new Issue(Feedback.IMPROPER_DELTA, null, DELTA_FEEDBACK);
 }
 
-function* check_missing_notes(logic)
+function* check_missing_notes(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
+
 	// skip this if notes aren't loaded
-	if (!current.notes.length) return;
-	
+	if (!codeNotes.length) return;
 	for (const [gi, g] of logic.groups.entries())
 	{
 		let prev_addaddress = false;
@@ -619,25 +622,25 @@ function* check_missing_notes(logic)
 			if (!prev_addaddress) for (const operand of [req.lhs, req.rhs])
 			{
 				if (!operand || !operand.type || !operand.type.addr) continue;
-				const note = get_note(operand.value, current.notes);
+				const note = get_note(operand.value, codeNotes);
 				if (note) continue;
 
 				if (lastreport == operand.value) continue;
 				lastreport = operand.value;
-				yield new Issue(Feedback.MISSING_NOTE, req,
-					<ul>
-						<li>Address <code>{toDisplayHex(operand.value)}</code> missing note</li>
-					</ul>);
+				yield new Issue(Feedback.MISSING_NOTE, req, `Address ${toDisplayHex(operand.value)} missing note`);
 			}
 			prev_addaddress = req.flag == ReqFlag.ADDADDRESS;
 		}
 	}
 }
 
-function* check_mismatch_notes(logic)
+function* check_mismatch_notes(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	// skip this if notes aren't loaded
-	if (!current.notes.length) return;
+	if (!codeNotes.length) return;
 	
 	for (const [gi, g] of logic.groups.entries())
 	{
@@ -648,24 +651,23 @@ function* check_mismatch_notes(logic)
 			if (!prev_addaddress) for (const operand of [req.lhs, req.rhs])
 			{
 				if (!operand || !operand.type || !operand.type.addr) continue;
-				const note = get_note(operand.value, current.notes);
+				const note = get_note(operand.value, codeNotes);
 				if (!note) continue;
 
 				// if the note size info is unknown, give up I guess
 				if (note.type && operand.size && !PartialAccess.has(operand.size) && operand.size != note.type)
-				yield new Issue(Feedback.TYPE_MISMATCH, req,
-					<ul>
-						<li>Accessing <code>{toDisplayHex(operand.value)}</code> as <code>{operand.size.name}</code></li>
-						<li>Matching code note at <code>{toDisplayHex(note.addr)}</code> is marked as <code>{note.type.name}</code></li>
-					</ul>);
+				yield new Issue(Feedback.TYPE_MISMATCH, req, `Accessing ${toDisplayHex(operand.value)} as ${operand.size.name}. Matching code note at ${toDisplayHex(note.addr)} is marked as ${note.type.name}`);
 			}
 			prev_addaddress = req.flag == ReqFlag.ADDADDRESS;
 		}
 	}
 }
 
-function* check_priors(logic)
+function* check_priors(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 	{
 		for (const [ai, a] of g.entries())
@@ -673,13 +675,8 @@ function* check_priors(logic)
 			{
 				const _a = a.canonicalize();
 				if (_a.lhs.type == ReqType.MEM && _a.rhs.type == ReqType.PRIOR)
-					yield new Issue(Feedback.BAD_PRIOR, a,
-						<ul>
-							<li>A memory value will always be not-equal to its prior, unless the value has never changed.</li>
-							<li>This requirement most likely does not accomplish anything and is probably safe to remove.</li>
-						</ul>);
+					yield new Issue(Feedback.BAD_PRIOR, a, `A memory value will always be not-equal to its prior, unless the value has never changed. This requirement most likely does not accomplish anything and is probably safe to remove.`);
 			}
-
 		for (const [ai, a] of g.entries())
 		{
 			const _a = a.canonicalize();
@@ -690,19 +687,18 @@ function* check_priors(logic)
 					if (_b.op == '=' && _b.lhs.type == ReqType.MEM && !_b.rhs.type.addr)
 					{
 						if (ReqOperand.equals(_a.rhs, _b.rhs) && ReqOperand.sameValue(_a.lhs, _b.lhs))
-							yield new Issue(Feedback.BAD_PRIOR, a,
-								<ul>
-									<li>The prior comparison will always be true when <code>{b.toAnnotatedString()}</code>, unless the value has never changed.</li>
-									<li>This requirement most likely does not accomplish anything and is probably safe to remove.</li>
-								</ul>);
+							yield new Issue(Feedback.BAD_PRIOR, a, `The prior comparison will always be true when ${b.toAnnotatedString()}, unless the value has never changed. This requirement most likely does not accomplish anything and is probably safe to remove.`);
 					}
 				}
 		}
 	}
 }
 
-function* check_bad_chains(logic)
+function* check_bad_chains(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 	{
 		const last = g[g.length-1];
@@ -711,8 +707,11 @@ function* check_bad_chains(logic)
 	}
 }
 
-function* check_stale_addaddress(logic)
+function* check_stale_addaddress(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
 		{
@@ -722,14 +721,33 @@ function* check_stale_addaddress(logic)
 		}
 }
 
-function* check_oca(logic)
+function* check_oca(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	if (!logic.value && logic.getMemoryLookups().size <= 1)
 		yield new Issue(Feedback.ONE_CONDITION, null);
 }
 
-function* check_pauselocks(logic)
+Set.prototype.difference = function(otherSet) {
+	if (!(otherSet instanceof Set)) {
+		throw new TypeError('The argument must be a Set.');
+	}
+	const differenceSet = new Set();
+	for (const element of this) {
+		if (!otherSet.has(element)) {
+			differenceSet.add(element);
+		}
+	}
+	return differenceSet;
+};
+
+function* check_pauselocks(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	let groups_with_reset = new Set();
 	for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
@@ -755,8 +773,11 @@ function* check_pauselocks(logic)
 		}
 }
 
-function* check_uncleared_hits(logic)
+function* check_uncleared_hits(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	let has_resetif = false;
 	resetifloop: for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
@@ -784,8 +805,11 @@ function* check_uncleared_hits(logic)
 		}
 }
 
-function* check_uuo_pause(logic)
+function* check_uuo_pause(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	let has_hits = false;
 	hitloop: for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
@@ -808,18 +832,17 @@ function* check_uuo_pause(logic)
 
 				// pause in a value group can freeze the reported value, and therefore is fine
 				else if (!logic.value)
-					yield new Issue(Feedback.UUO_PAUSE, req,
-						<ul>
-							<li>Automated recommended change:</li>
-							<pre><code>{invert_chain(g, ri)}</code></pre>
-						</ul>);
+					yield new Issue(Feedback.UUO_PAUSE, req, `Automated recommended change: ${invert_chain(g, ri)}`);
 			}
 		}
 	}
 }
 
-function* check_uuo_reset(logic)
+function* check_uuo_reset(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	let has_hits = false;
 	hitloop: for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
@@ -838,18 +861,17 @@ function* check_uuo_reset(logic)
 			{
 				// ResetIf with a measured should be fine in a value
 				if (!logic.value || group_flags.has(ReqFlag.MEASURED) || group_flags.has(ReqFlag.MEASUREDP))
-					yield new Issue(Feedback.UUO_RESET, req,
-						<ul>
-							<li>Automated recommended change:</li>
-							<pre><code>{invert_chain(g, ri)}</code></pre>
-						</ul>);
+					yield new Issue(Feedback.UUO_RESET, req, `Automated recommended change: ${invert_chain(g, ri)}`);
 			}
 		}
 	}
 }
 
-function* check_reset_with_hits(logic)
+function* check_reset_with_hits(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
 		{
@@ -858,8 +880,11 @@ function* check_reset_with_hits(logic)
 		}
 }
 
-function* check_uuo_resetnextif(logic)
+function* check_uuo_resetnextif(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
 		{
@@ -888,8 +913,11 @@ function* check_uuo_resetnextif(logic)
 		}
 }
 
-function* check_missing_enum(logic)
+function* check_missing_enum(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	for (const [gi, g] of logic.groups.entries())
 		for (const [ri, req] of g.entries())
 		{
@@ -897,7 +925,7 @@ function* check_missing_enum(logic)
 			let creq = req.canonicalize();
 
 			if (creq.lhs.type.addr && creq.rhs && creq.rhs.type == ReqType.VALUE)
-				for (const note of current.notes)
+				for (const note of codeNotes)
 					if (note.contains(creq.lhs.value) && note.enum)
 			{
 				let found = false;
@@ -906,10 +934,7 @@ function* check_missing_enum(logic)
 					{ found = true; break enumloop; }
 
 				if (!found)
-					yield new Issue(Feedback.MISSING_ENUMERATION, req, 
-						<ul>
-							<li>Enumeration <code>0x{creq.rhs.value.toString(16).padStart(2, '0')}</code> not found for note at address <code>{toDisplayHex(creq.lhs.value)}</code></li>
-						</ul>);
+					yield new Issue(Feedback.MISSING_ENUMERATION, req, `Enumeration 0x${creq.rhs.value.toString(16).padStart(2, '0')} not found for note at address ${toDisplayHex(creq.lhs.value)}`);
 			}
 		}
 }
@@ -920,25 +945,8 @@ function* check_title_case(asset)
 	if (corrected_title != asset.title)
 	{
 		const q = encodeURIComponent(asset.title);
-		yield new Issue(Feedback.TITLE_CASE, 'title',
-			<ul>
-				<li>Automated suggestion: <em>{corrected_title}</em></li>
-				<li>Additional suggestions</li>
-				<ul>
-					<li><a href={`https://titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}`}>titlecaseconverter.com</a></li>
-					<li><a href={`https://capitalizemytitle.com/style/Chicago/?title=${q}`}>capitalizemytitle.com</a></li>
-				</ul>
-				<li><em>Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully.</em></li>
-			</ul>);
+		yield new Issue(Feedback.TITLE_CASE, 'title', `Automated suggestion (Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully.): ${corrected_title}. Additional suggestions: www.titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}>titlecaseconverter.com, www.capitalizemytitle.com/style/Chicago/?title=${q}>capitalizemytitle.com`);
 	}
-}
-
-function HighlightedFeedback({text, pattern})
-{
-	let parts = text.split(pattern);
-	for (let i = 1; i < parts.length; i += 2)
-		parts[i] = <span key={i} className="warn">{parts[i]}</span>;
-	return <>{parts}</>;
 }
 
 const EMOJI_RE = /(\p{Emoji_Presentation})/gu;
@@ -955,23 +963,12 @@ function* check_writing_mistakes(asset)
 		else if (TYPOGRAPHY_PUNCT.test(asset[elt]))
 		{
 			let corrected = asset[elt].replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-			yield new Issue(Feedback.SPECIAL_CHARS, elt,
-				<ul>
-					<li>"Smart" quotes are great for typography, but often don't render correctly in emulators. <a href="https://en.wikipedia.org/wiki/Quotation_mark#Curved_quotes_within_and_across_applications">What are smart quotes?</a></li>
-					<li><em><HighlightedFeedback text={asset[elt]} pattern={TYPOGRAPHY_PUNCT} /></em> &#x27F9; <code>{corrected}</code></li>
-				</ul>);
+			yield new Issue(Feedback.SPECIAL_CHARS, elt, `"Smart" quotes are great for typography, but often don't render correctly in emulators. Current: ${asset[elt]} Sugested: ${corrected}`);
 		}
 		else if (FOREIGN_RE.test(asset[elt]))
-			yield new Issue(Feedback.FOREIGN_CHARS, elt,
-				<ul>
-					<li><em><HighlightedFeedback text={asset[elt]} pattern={FOREIGN_RE} /></em></li>
-					<li>For policy exceptions regarding the use of foreign language, <a href="https://retroachievements.org/messages/create?to=QATeam">message QATeam</a></li>
-				</ul>);
+			yield new Issue(Feedback.FOREIGN_CHARS, elt, `For policy exceptions regarding the use of foreign language message QATeam: ${asset[elt]}`);
 		else if (NON_ASCII_RE.test(asset[elt]))
-			yield new Issue(Feedback.SPECIAL_CHARS, elt,
-				<ul>
-					<li><em><HighlightedFeedback text={asset[elt]} pattern={NON_ASCII_RE} /></em></li>
-				</ul>);
+			yield new Issue(Feedback.SPECIAL_CHARS, elt, `Non-ASCII acharacters: ${asset[elt]}`);
 	}
 }
 
@@ -985,10 +982,7 @@ function* check_notes_missing_size(notes)
 {
 	for (const note of notes)
 		if (note.type == null && note.size == 1)
-			yield new Issue(Feedback.NOTE_NO_SIZE, note,
-				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
-				</ul>);
+			yield new Issue(Feedback.NOTE_NO_SIZE, note, `Code note at ${toDisplayHex(note.addr)}`);
 }
 
 const NUMERIC_RE = /\b(0x)?([0-9a-f]{2,})\b/gi;
@@ -1003,13 +997,7 @@ function* check_notes_enum_hex(notes)
 					found.push(literal);
 		
 		if (found.length > 0)
-			yield new Issue(Feedback.NOTE_ENUM_HEX, note,
-				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
-					<li>Found potential hex values: {found.map((x, i) => <React.Fragment key={i}>
-						{i == 0 ? '' : ', '} <code>{x}</code>
-					</React.Fragment>)}</li>
-				</ul>);
+			yield new Issue(Feedback.NOTE_ENUM_HEX, note, `Code note at ${toDisplayHex(note.addr)} found potential hex values: ${found.join(', ')}`);
 	}
 }
 
@@ -1023,20 +1011,14 @@ function* check_notes_enum_size_mismatch(notes)
 				found.push(literal);
 
 		if (found.length > 0)
-			yield new Issue(Feedback.NOTE_ENUM_TOO_LARGE, note,
-				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
-					<li>The code note is listed as <code>{note.type.name}</code>, which has a max value of <code>0x{(note.type.maxvalue.toString(16).toUpperCase())}</code></li>
-					<li>The following enumerated values are too large for this code note: {found.map((x, i) => <React.Fragment key={i}>
-						{i == 0 ? '' : ', '} <code>{x}</code>
-					</React.Fragment>)}</li>
-				</ul>
-			);
+			yield new Issue(Feedback.NOTE_ENUM_TOO_LARGE, note, `The code note at ${toDisplayHex(note.addr)} is listed as ${note.type.name}, which has a max value of 0x${(note.type.maxvalue.toString(16).toUpperCase())}`);
 	}
 }
 
-function* check_rp_dynamic(rp)
+function* check_rp_dynamic(args)
 {
+	let rp = args[0]
+	let codeNotes = args[1]
 	if (!rp.display.some(x => x.condition != null))
 	{
 		if (!rp.display.some(x => x.lookups.length > 0))
@@ -1046,8 +1028,10 @@ function* check_rp_dynamic(rp)
 	}
 }
 
-function* check_rp_notes(rp)
+function* check_rp_notes(args)
 {
+	let rp = args[0]
+	let codeNotes = args[1]
 	function* get_rp_notes_issues(logic, where)
 	{
 		for (const [gi, g] of logic.groups.entries())
@@ -1059,15 +1043,12 @@ function* check_rp_notes(rp)
 				for (const operand of [req.lhs, req.rhs])
 				{
 					if (!operand || !operand.type || !operand.type.addr) continue;
-					const note = get_note(operand.value, current.notes);
+					const note = get_note(operand.value, codeNotes);
 
 					if (!prev_addaddress && !note)
 					{
 						if (lastreport == operand.value) continue;
-						yield new Issue(Feedback.MISSING_NOTE_RP, null,
-							<ul>
-								<li>Missing note for {where}: <code>{toDisplayHex(operand.value)}</code></li>
-							</ul>);
+						yield new Issue(Feedback.MISSING_NOTE_RP, null, `Missing note for ${where}: ${toDisplayHex(operand.value)}`);
 						lastreport = operand.value;
 					}
 
@@ -1075,14 +1056,7 @@ function* check_rp_notes(rp)
 					{
 						// if the note size info is unknown, give up I guess
 						if (note.type && operand.size && !PartialAccess.has(operand.size) && operand.size != note.type)
-							yield new Issue(Feedback.TYPE_MISMATCH, req,
-								<ul>
-									<li>Accessing <code>{toDisplayHex(operand.value)}</code> in {where} as <code>{operand.size.name}</code></li>
-									<li>Matching code note at <code>{toDisplayHex(note.addr)}</code> is marked as <code>{note.type.name}</code></li>
-									<ul>
-										<li>Correct accessor should be: <code>{note.type.prefix}{note.addr.toString(16).padStart(8, '0')}</code></li>
-									</ul>
-								</ul>);
+							yield new Issue(Feedback.TYPE_MISMATCH, req, `Accessing ${toDisplayHex(operand.value)} in ${where} as ${operand.size.name}. Matching code note at ${toDisplayHex(note.addr)} is marked as ${note.type.name}. Correct accessor should be: ${note.type.prefix}${note.addr.toString(16).padStart(8, '0')}`);
 					}
 				}
 				prev_addaddress = req.flag == ReqFlag.ADDADDRESS;
@@ -1093,14 +1067,17 @@ function* check_rp_notes(rp)
 	for (const [di, d] of rp.display.entries())
 	{
 		if (d.condition != null)
-			yield* get_rp_notes_issues(d.condition, <>condition of display #{di+1}</>);
+			yield* get_rp_notes_issues(d.condition, `condition of display #${di+1}`);
 		for (const [li, look] of d.lookups.entries())
-			yield* get_rp_notes_issues(look.calc, <><code>{look.name}</code> lookup of display #{di+1}</>);
+			yield* get_rp_notes_issues(look.calc, `${look.name} lookup of display #${di+1}`);
 	}
 }
 
-function* check_source_mod_measured(logic)
+function* check_source_mod_measured(args)
 {
+	logic = args[0]
+	operands = args[1]
+	codeNotes = args[2]
 	if (!logic.value) return;
 	for (const group of logic.groups)
 		for (const [ri, req] of group.entries())
@@ -1117,11 +1094,7 @@ function* check_source_mod_measured(logic)
 					fixed = group[i].toMarkdown() + '\n' + fixed;
 				}
 
-				yield new Issue(Feedback.SOURCE_MOD_MEASURED, req,
-					<ul>
-						<li>This can be fixed by using <code>AddSource</code> to add to a <code>Measured Val 0</code></li>
-						<pre><code>{fixed}</code></pre>
-					</ul>);
+				yield new Issue(Feedback.SOURCE_MOD_MEASURED, req, `This can be fixed by using AddSource to add to a Measured Val 0: ${fixed}`);
 			}
 }
 
@@ -1147,11 +1120,7 @@ function* check_duplicate_text(set)
 	}
 
 	for (let [title, group] of groups.entries())
-		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null,
-			<ul>
-				<li>{group.length} achievements share the title <code>{title}</code></li>
-			</ul>
-		);
+		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null, `${group.length} achievements share the title ${title}`);
 	
 	// compare achievement descriptions
 	groups = new Map();
@@ -1162,12 +1131,7 @@ function* check_duplicate_text(set)
 	}
 
 	for (let [desc, group] of groups.entries())
-		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_DESCRIPTIONS, null,
-			<ul>
-				<li>{group.length} achievements share the same description:</li>
-				<ul>{group.map((asset, i) => <li key={i}>{asset.title}</li>)}</ul>
-			</ul>
-		);
+		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_DESCRIPTIONS, null, `${group.length} achievements share the same description:${group.map((asset, i) => { return asset.title}).join(", ")}`);
 
 	// compare achievement titles
 	groups = new Map();
@@ -1178,11 +1142,7 @@ function* check_duplicate_text(set)
 	}
 
 	for (let [title, group] of groups.entries())
-		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null,
-			<ul>
-				<li>{group.length} leaderboards share the title <code>{title}</code></li>
-			</ul>
-		);
+		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null, `${group.length} leaderboards share the title ${title}`);
 }
 
 const BASIC_LOGIC_TESTS = [
@@ -1242,50 +1202,55 @@ const LEADERBOARD_TESTS = {
 		),
 }
 
-function get_leaderboard_issues(lb)
+function get_leaderboard_issues(lb, codeNotes)
 {
 	let res = new IssueGroup("Logic & Design");
 	for (let block of ["START", "CANCEL", "SUBMIT", "VALUE"])
 	{
 		const tag = block.substring(0, 3);
-		for (const test of LEADERBOARD_TESTS[tag])
-			for (const issue of test(lb.components[tag]))
+		for (const test of LEADERBOARD_TESTS[tag]) {
+			let operands = getOperands(lb.components[tag].groups)
+			for (const issue of test([lb.components[tag], operands, codeNotes])) {
 				res.add(issue);
+			}
+		}
 	}
 	return res;
 }
 
-function assess_achievement(ach)
+function assess_achievement(ach, codeNotes)
 {
 	let res = new Assessment();
 
-	res.stats = generate_logic_stats(ach.logic);
+	let operands = getOperands(ach.logic.groups)
 
-	res.issues.push(IssueGroup.fromTests("Logic & Design", LOGIC_TESTS, ach.logic));
+	res.stats = generate_logic_stats(ach.logic, operands);
+
+	res.issues.push(IssueGroup.fromTests("Logic & Design", LOGIC_TESTS, [ach.logic, operands, codeNotes]));
 	res.issues.push(IssueGroup.fromTests("Presentation & Writing", PRESENTATION_TESTS, ach));
 
 	// attach feedback to the asset
 	return ach.feedback = res;
 }
 
-function assess_leaderboard(lb)
+function assess_leaderboard(lb, codeNotes)
 {
 	let res = new Assessment();
 
 	res.stats = generate_leaderboard_stats(lb);
 
-	res.issues.push(get_leaderboard_issues(lb));
+	res.issues.push(get_leaderboard_issues(lb, codeNotes));
 	res.issues.push(IssueGroup.fromTests("Presentation & Writing", PRESENTATION_TESTS, lb));
 
 	// attach feedback to the asset
 	return lb.feedback = res;
 }
 
-function assess_code_notes(notes)
+function assess_code_notes(ach, notes)
 {
 	let res = new Assessment();
 
-	res.stats = generate_code_note_stats(notes);
+	res.stats = generate_code_note_stats(ach, notes);
 
 	res.issues.push(IssueGroup.fromTests("Code Notes", CODE_NOTE_TESTS, notes));
 
@@ -1293,28 +1258,30 @@ function assess_code_notes(notes)
 	return notes.feedback = res;
 }
 
-function assess_rich_presence(rp)
+function assess_rich_presence(rp, codeNotes)
 {
 	let res = new Assessment();
 	rp ??= new RichPresence(); // if there is no RP, just use a placeholder
 
 	res.stats = generate_rich_presence_stats(rp);
 
-	res.issues.push(IssueGroup.fromTests("Logic & Design", RICH_PRESENCE_TESTS, rp));
+	res.issues.push(IssueGroup.fromTests("Logic & Design", RICH_PRESENCE_TESTS, [rp, codeNotes]));
 
 	// attach feedback to the asset
 	// if this was a placeholder, it will fall off here
 	return rp.feedback = res;
 }
 
-function assess_set(set)
+function assess_set(set, codeNotes, rp)
 {
 	let res = new Assessment();
 
-	res.stats = generate_set_stats(set);
+	res.stats = generate_set_stats(set, codeNotes, rp);
 
 	res.issues.push(IssueGroup.fromTests("Set Design", SET_TESTS, set));
 
 	// attach feedback to the asset
 	return set.feedback = res;
 }
+
+module.exports = { assess_code_notes, assess_achievement, assess_leaderboard, assess_rich_presence, assess_set, FeedbackSeverity };
