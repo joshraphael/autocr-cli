@@ -349,13 +349,6 @@ class Logic
 		return logic;
 	}
 
-	getOperands()
-	{
-		return this.groups.reduce((ia, ie) => ia.concat(
-			ie.reduce((ja, je) => ja.concat(je.lhs, je.rhs), [])
-		), []).filter(x => x);
-	}
-
 	getAddresses()
 	{
 		return this.groups.reduce((ia, ie) => ia.concat(
@@ -390,8 +383,6 @@ class Logic
 		return virt;
 	}
 
-	getTypes()     { return this.getOperands().map(x => x.type).filter(x => x); }
-	getMemSizes()  { return this.getOperands().map(x => x.size).filter(x => x); }
 	getFlags()     { return this.groups.reduce((ia, ie) => ia.concat(ie.map(x => x.flag)), []).filter(x => x); }
 
 	toMarkdown()
@@ -421,3 +412,19 @@ class Logic
 		return output;
 	}
 }
+
+function getOperands(groups) {
+	return groups.reduce((ia, ie) => ia.concat(
+		ie.reduce((ja, je) => ja.concat(je.lhs, je.rhs), [])
+	), []).filter(x => x);
+}
+
+function getMemSizes(operands) {
+	return operands.map(x => x.size).filter(x => x);
+}
+
+function getTypes(operands) {
+	return operands.map(x => x.type).filter(x => x);
+}
+
+module.exports = { LogicParseError, MemSize, Logic, FormatTypeMap, BitProficiency, ReqFlag, ReqType, getMemSizes, getTypes, getOperands, PartialAccess, ReqOperand, FormatType, Requirement };
