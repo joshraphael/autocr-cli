@@ -1,3 +1,5 @@
+const { MemSize, Logic, FormatTypeMap, FormatType } = require("./logic");
+
 const Console = Object.freeze({
 	// Nintendo
 	GB: { id: 4, name: "Game Boy", icon: "gb", 
@@ -580,8 +582,8 @@ function testCodeNotes()
 		let cn = new CodeNote(0x0, note);
 		let res = cn.size == size && cn.type == type ? "PASS" : "FAIL";
 		
-		console.log(note, '-->', size, type);
-		console.log(res, cn);
+		// console.log(note, '-->', size, type);
+		// console.log(res, cn);
 
 		count += 1;
 		if (!(cn.size == size && cn.type == type)) fails += 1;
@@ -688,7 +690,7 @@ function testCodeNotes()
 	_testNote("lower 4-byte value", 1, MemSize.BYTE);
 	_testNote("lower (4-byte) value", 4, MemSize.DWORD);
 
-	console.log(fails + "/" + count + " failed")
+	// console.log(fails + "/" + count + " failed")
 }
 
 class LookupRange
@@ -803,11 +805,20 @@ class RichPresence
 		}
 
 		// process all lookups in each display
-		for (let d of richp.display)
-			d.lookups = [...d.string.matchAll(/@([ _a-z][ _a-z0-9]*)\((.+?)\)/gi).map((x) => ({
-				name: x[1],
-				calc: Logic.fromString(x[2], true),
-			}))];
+		for (let d of richp.display) {
+			let parts = d.string.matchAll(/@([ _a-z][ _a-z0-9]*)\((.+?)\)/gi)
+
+		    var lookups = []
+		    for (const x of parts) {
+				lookups.push({
+					name: x[1],
+					calc: Logic.fromString(x[2], true),
+				})
+			}
+			d.lookups = lookups
+		}
 		return richp;
 	}
 }
+
+module.exports = { AchievementSet, CodeNote, RichPresence, Leaderboard, AssetState };
