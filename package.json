@@ -1,0 +1,29 @@
+{
+  "name": "@joshraphael/autocr-cli",
+  "version": "1.2.7",
+  "description": "AutoCR command line tool for RetroAchievments.org achievement logic",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joshraphael/autocr-cli.git"
+  },
+  "keywords": [
+    "retroachievements",
+    "autocr"
+  ],
+  "files": [
+    "index.js",
+    "achievements.js",
+    "feedback.js",
+    "logic.js"
+  ],
+  "author": "Joshua Raphael",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/joshraphael/autocr-cli/issues"
+  },
+  "homepage": "https://github.com/joshraphael/autocr-cli"
+}
