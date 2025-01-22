@@ -2,6 +2,8 @@
 
 Heavily taken from [AutoCR](https://github.com/authorblues/retroachievements/tree/main/AutoCR) in an attempt to use the same logic as in a command line interface to automate checking achievement logic in pipelines
 
+Available on [NPM](https://www.npmjs.com/package/@joshraphael/autocr-cli) and [Github Packages](https://github.com/joshraphael/autocr-cli/pkgs/npm/autocr-cli)
+
 ## Usage
 
 ```sh
