@@ -1,3 +1,5 @@
+const { MemSize, Logic, FormatTypeMap, FormatType } = require("./logic");
+
 const Console = Object.freeze({
 	// Nintendo
 	GB: { id: 4, name: "Game Boy", icon: "gb", 
@@ -794,11 +796,20 @@ class RichPresence
 		}
 
 		// process all lookups in each display
-		for (let d of richp.display)
-			d.lookups = [...d.string.matchAll(/@([ _a-z][ _a-z0-9]*)\((.+?)\)/gi).map((x) => ({
-				name: x[1],
-				calc: Logic.fromString(x[2], true),
-			}))];
+		for (let d of richp.display) {
+			let parts = d.string.matchAll(/@([ _a-z][ _a-z0-9]*)\((.+?)\)/gi)
+
+		    var lookups = []
+		    for (const x of parts) {
+				lookups.push({
+					name: x[1],
+					calc: Logic.fromString(x[2], true),
+				})
+			}
+			d.lookups = lookups
+		}
 		return richp;
 	}
 }
+
+module.exports = { AchievementSet, CodeNote, RichPresence, Leaderboard, AssetState };
