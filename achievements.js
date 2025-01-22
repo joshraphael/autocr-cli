@@ -1,3 +1,5 @@
+const { MemSize, Logic, FormatTypeMap, FormatType } = require("./logic");
+
 class MemRegion
 {
 	start;
@@ -1074,8 +1076,8 @@ function testCodeNotes()
 		let cn = new CodeNote(0x0, note);
 		let res = cn.size == size && cn.type == type ? "PASS" : "FAIL";
 		
-		console.log(note, '-->', size, type);
-		console.log(res, cn);
+		// console.log(note, '-->', size, type);
+		// console.log(res, cn);
 
 		count += 1;
 		if (!(cn.size == size && cn.type == type)) fails += 1;
@@ -1182,7 +1184,7 @@ function testCodeNotes()
 	_testNote("lower 4-byte value", 1, MemSize.BYTE);
 	_testNote("lower (4-byte) value", 4, MemSize.DWORD);
 
-	console.log(fails + "/" + count + " failed")
+	// console.log(fails + "/" + count + " failed")
 }
 
 class LookupEntry {
@@ -1443,3 +1445,5 @@ class RichPresence
 		return rp;
 	}
 }
+
+module.exports = { AchievementSet, CodeNote, RichPresence, Leaderboard, AssetState, CodeNoteSet };
