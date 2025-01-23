@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export URL="https://raw.githubusercontent.com/authorblues/retroachievements"
-export SHA="0a1dd5dfb87e8293c575641b321dcfab286c0cd3"
+export SHA="7704d3ad9d74db55808d0114357671665fc6819b"
 
 for file in "achievements.js" "logic.js" "feedback.js"; do
     rm -f ${file}

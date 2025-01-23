@@ -1155,31 +1155,51 @@ function* check_progression_typing(set)
 
 function* check_duplicate_text(set)
 {
-	let titlegroups = new Map();
-	let descgroups = new Map();
+	let groups;
 
-	for (const assetgroup of [set.getAchievements(), set.getLeaderboards()])
-		for (const asset of assetgroup)
-		{
-			if (!titlegroups.has(asset.title)) titlegroups.set(asset.title, []);
-			titlegroups.get(asset.title).push(asset);
+	// compare achievement titles
+	groups = new Map();
+	for (const asset of set.getAchievements())
+	{
+		if (!groups.has(asset.title)) groups.set(asset.title, []);
+		groups.get(asset.title).push(asset);
+	}
 
-			if (!descgroups.has(asset.desc)) descgroups.set(asset.desc, []);
-			descgroups.get(asset.desc).push(asset);
-		}
-
-	for (let [title, group] of titlegroups.entries())
+	for (let [title, group] of groups.entries())
 		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null,
 			<ul>
-				<li>{group.length} assets share the title <code>{title}</code></li>
+				<li>{group.length} achievements share the title <code>{title}</code></li>
+			</ul>
+		);
+	
+	// compare achievement descriptions
+	groups = new Map();
+	for (const asset of set.getAchievements())
+	{
+		if (!groups.has(asset.desc)) groups.set(asset.desc, []);
+		groups.get(asset.desc).push(asset);
+	}
+
+	for (let [desc, group] of groups.entries())
+		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_DESCRIPTIONS, null,
+			<ul>
+				<li>{group.length} achievements share the same description:</li>
+				<ul>{group.map((asset, i) => <li key={i}>{asset.title}</li>)}</ul>
 			</ul>
 		);
 
-	for (let [desc, group] of descgroups.entries())
-		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_DESCRIPTIONS, null,
+	// compare achievement titles
+	groups = new Map();
+	for (const asset of set.getLeaderboards())
+	{
+		if (!groups.has(asset.title)) groups.set(asset.title, []);
+		groups.get(asset.title).push(asset);
+	}
+
+	for (let [title, group] of groups.entries())
+		if (group.length > 1) yield new Issue(Feedback.DUPLICATE_TITLES, null,
 			<ul>
-				<li>{group.length} assets share the same description:</li>
-				<ul>{group.map((asset, i) => <li key={i}>{asset.title}</li>)}</ul>
+				<li>{group.length} leaderboards share the title <code>{title}</code></li>
 			</ul>
 		);
 }
