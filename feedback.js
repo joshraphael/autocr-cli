@@ -142,7 +142,7 @@ const Feedback = Object.freeze({
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/pauseif.html',], },
 	PAUSING_MEASURED: { severity: FeedbackSeverity.PASS, desc: "PauseIf should only be used with requirements that have hitcounts, unless being used to freeze updates to a Measured requirement.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/measured.html#measured',], },
-	RESET_HITCOUNT_1: { severity: FeedbackSeverity.WARN, desc: "A ResetIf or ResetNextIf with a hitcount of 1 does not require a hitcount. The hitcount can be safely removed.",
+	RESET_HITCOUNT_1: { severity: FeedbackSeverity.INFO, desc: "A ResetIf or ResetNextIf with a hitcount of 1 does not require a hitcount. The hitcount can be safely removed.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/resetif.html',], },
 	USELESS_ADDSUB: { severity: FeedbackSeverity.WARN, desc: "Using AddSource and SubSource is better supported in old emulators, and should be preferred where possible.",
 		ref: [
@@ -197,9 +197,6 @@ class Assessment
 	status() { return Math.max(FeedbackSeverity.PASS, ...this.#allissues().map(x => x.type.severity)); }
 	pass() { return this.status() < FeedbackSeverity.WARN; }
 }
-
-function send_message_to(target)
-{ return `https://retroachievements.org/messages/create?to=${target}`; }
 
 function get_note(addr, notes = [])
 {
@@ -600,7 +597,7 @@ function* check_deltas(logic)
 	});
 
 	// either the core group must have the valid mem/delta check, or *all* alt groups
-	if (!delta_groups[0] && !delta_groups.slice(1).every(x => x))
+	if (!delta_groups[0] && (delta_groups.length == 1 || !delta_groups.slice(1).every(x => x)))
 		yield new Issue(Feedback.IMPROPER_DELTA, null, DELTA_FEEDBACK);
 }
 
@@ -927,6 +924,7 @@ function* check_title_case(asset)
 					<li><a href={`https://titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}`}>titlecaseconverter.com</a></li>
 					<li><a href={`https://capitalizemytitle.com/style/Chicago/?title=${q}`}>capitalizemytitle.com</a></li>
 				</ul>
+				<li><em>Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully.</em></li>
 			</ul>);
 	}
 }
@@ -940,18 +938,17 @@ function HighlightedFeedback({text, pattern})
 }
 
 const EMOJI_RE = /(\p{Emoji_Presentation})/gu;
-function* check_emoji(asset)
+const TYPOGRAPHY_PUNCT = /([\u2018\u2019\u201C\u201D])/gu;
+const FOREIGN_RE = /([\p{Script=Arabic}\p{Script=Armenian}\p{Script=Bengali}\p{Script=Bopomofo}\p{Script=Braille}\p{Script=Buhid}\p{Script=Canadian_Aboriginal}\p{Script=Cherokee}\p{Script=Cyrillic}\p{Script=Devanagari}\p{Script=Ethiopic}\p{Script=Georgian}\p{Script=Greek}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Han}\p{Script=Hangul}\p{Script=Hanunoo}\p{Script=Hebrew}\p{Script=Hiragana}\p{Script=Inherited}\p{Script=Kannada}\p{Script=Katakana}\p{Script=Khmer}\p{Script=Lao}\p{Script=Limbu}\p{Script=Malayalam}\p{Script=Mongolian}\p{Script=Myanmar}\p{Script=Ogham}\p{Script=Oriya}\p{Script=Runic}\p{Script=Sinhala}\p{Script=Syriac}\p{Script=Tagalog}\p{Script=Tagbanwa}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Thaana}\p{Script=Thai}\p{Script=Tibetan}\p{Script=Yi}]+)/gu;
+const NON_ASCII_RE = /([^\x00-\x7F]+)/g;
+
+function* check_writing_mistakes(asset)
 {
 	for (const elt of ['title', 'desc'])
+	{
 		if (EMOJI_RE.test(asset[elt]))
 			yield new Issue(Feedback.NO_EMOJI, elt);
-}
-
-const TYPOGRAPHY_PUNCT = /([\u2018\u2019\u201C\u201D])/gu;
-function* check_smart_quotes(asset)
-{
-	for (const elt of ['title', 'desc'])
-		if (TYPOGRAPHY_PUNCT.test(asset[elt]))
+		else if (TYPOGRAPHY_PUNCT.test(asset[elt]))
 		{
 			let corrected = asset[elt].replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
 			yield new Issue(Feedback.SPECIAL_CHARS, elt,
@@ -960,43 +957,23 @@ function* check_smart_quotes(asset)
 					<li><em><HighlightedFeedback text={asset[elt]} pattern={TYPOGRAPHY_PUNCT} /></em> &#x27F9; <code>{corrected}</code></li>
 				</ul>);
 		}
-}
-
-const FOREIGN_RE = /([\p{Script=Arabic}\p{Script=Armenian}\p{Script=Bengali}\p{Script=Bopomofo}\p{Script=Braille}\p{Script=Buhid}\p{Script=Canadian_Aboriginal}\p{Script=Cherokee}\p{Script=Cyrillic}\p{Script=Devanagari}\p{Script=Ethiopic}\p{Script=Georgian}\p{Script=Greek}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Han}\p{Script=Hangul}\p{Script=Hanunoo}\p{Script=Hebrew}\p{Script=Hiragana}\p{Script=Inherited}\p{Script=Kannada}\p{Script=Katakana}\p{Script=Khmer}\p{Script=Lao}\p{Script=Limbu}\p{Script=Malayalam}\p{Script=Mongolian}\p{Script=Myanmar}\p{Script=Ogham}\p{Script=Oriya}\p{Script=Runic}\p{Script=Sinhala}\p{Script=Syriac}\p{Script=Tagalog}\p{Script=Tagbanwa}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Thaana}\p{Script=Thai}\p{Script=Tibetan}\p{Script=Yi}]+)/gu;
-function* check_foreign(asset)
-{
-	for (const elt of ['title', 'desc'])
-		if (FOREIGN_RE.test(asset[elt]))
+		else if (FOREIGN_RE.test(asset[elt]))
 			yield new Issue(Feedback.FOREIGN_CHARS, elt,
 				<ul>
 					<li><em><HighlightedFeedback text={asset[elt]} pattern={FOREIGN_RE} /></em></li>
-					<li>For policy exceptions regarding the use of foreign language, <a href={send_message_to("QATeam")}>message QATeam</a></li>
+					<li>For policy exceptions regarding the use of foreign language, <a href="https://retroachievements.org/messages/create?to=QATeam">message QATeam</a></li>
 				</ul>);
-}
-
-const NON_ASCII_RE = /([^\x00-\x7F]+)/g;
-function* check_non_ascii(asset)
-{
-	for (const elt of ['title', 'desc'])
-	{
-		// if this doesn't have non-ascii characters, skip
-		if (!NON_ASCII_RE.test(asset[elt])) continue;
-
-		// if this contains one of the other checked classes, skip
-		if (EMOJI_RE.test(asset[elt])) continue;
-		if (TYPOGRAPHY_PUNCT.test(asset[elt])) continue;
-		if (FOREIGN_RE.test(asset[elt])) continue;
-
-		yield new Issue(Feedback.SPECIAL_CHARS, elt,
-			<ul>
-				<li><em><HighlightedFeedback text={asset[elt]} pattern={NON_ASCII_RE} /></em></li>
-			</ul>);
+		else if (NON_ASCII_RE.test(asset[elt]))
+			yield new Issue(Feedback.SPECIAL_CHARS, elt,
+				<ul>
+					<li><em><HighlightedFeedback text={asset[elt]} pattern={NON_ASCII_RE} /></em></li>
+				</ul>);
 	}
 }
 
 function* check_brackets(asset)
 {
-	if (/[\{\[\(](.+)[\}\]\)]/.test(asset.desc))
+	if (asset.desc.trim().match(/.[\{\[\(](.+)[\}\]\)]/))
 		yield new Issue(Feedback.DESC_BRACKETS, 'desc');
 }
 
@@ -1204,7 +1181,7 @@ function* check_duplicate_text(set)
 		);
 }
 
-const LOGIC_TESTS = [
+const BASIC_LOGIC_TESTS = [
 	check_missing_notes,
 	check_mismatch_notes,
 	check_bad_chains,
@@ -1219,20 +1196,17 @@ const LOGIC_TESTS = [
 	check_missing_enum,
 ];
 
-const ACHIEVEMENT_TESTS = [].concat(
+const LOGIC_TESTS = [].concat(
 	[
 		check_deltas,
 		check_oca,
 	],
-	LOGIC_TESTS
+	BASIC_LOGIC_TESTS
 );
 
 const PRESENTATION_TESTS = [
 	check_title_case,
-	check_emoji,
-	check_smart_quotes,
-	check_foreign,
-	check_non_ascii,
+	check_writing_mistakes,
 	check_brackets,
 ];
 
@@ -1253,14 +1227,14 @@ const SET_TESTS = [
 ];
 
 const LEADERBOARD_TESTS = {
-	'STA': ACHIEVEMENT_TESTS,
-	'CAN': LOGIC_TESTS,
-	'SUB': LOGIC_TESTS,
+	'STA': LOGIC_TESTS,
+	'CAN': BASIC_LOGIC_TESTS,
+	'SUB': BASIC_LOGIC_TESTS,
 	'VAL': [].concat(
 			[
 				check_source_mod_measured,
 			],
-			LOGIC_TESTS,
+			BASIC_LOGIC_TESTS,
 		),
 }
 
@@ -1283,7 +1257,7 @@ function assess_achievement(ach)
 
 	res.stats = generate_logic_stats(ach.logic);
 
-	res.issues.push(IssueGroup.fromTests("Logic & Design", ACHIEVEMENT_TESTS, ach.logic));
+	res.issues.push(IssueGroup.fromTests("Logic & Design", LOGIC_TESTS, ach.logic));
 	res.issues.push(IssueGroup.fromTests("Presentation & Writing", PRESENTATION_TESTS, ach));
 
 	// attach feedback to the asset
