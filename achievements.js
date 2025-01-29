@@ -519,13 +519,14 @@ class CodeNote
 		if (delim_count.size == 0) return null;
 		let [delim, dcount] = [...delim_count.entries()].sort(([a, av], [b, bv]) => bv - av)[0];
 
-		if (dcount == 1) return null;
-
 		let enumerations = [];
 		let isHex = false;
+		let linecount = 0;
 		for (let i = 1; i < lines.length; i++)
 		{
 			if (!lines[i].includes(delim)) continue;
+			linecount++;
+
 			let [lhs, ...rhs] = lines[i].split(delim);
 			rhs = rhs.join(delim).trim();
 
@@ -535,6 +536,9 @@ class CodeNote
 				isHex ||= m[1] || m[0].match(/[a-f]/i);
 			}
 		}
+
+		// there just doesn't seem to be enough to go on here
+		if (dcount == 1 || linecount < 3) return null;
 
 		for (let e of enumerations)
 			e.value = Number.parseInt(e.literal, isHex ? 16 : 10);

@@ -526,9 +526,9 @@ function* check_deltas(logic)
 			<li><a href="https://docs.retroachievements.org/developer-docs/why-delta.html">Why should all achievements use Deltas?</a></li>
 			<li>Appropriate use of Delta includes all of the following conditions:</li>
 			<ul>
-				<li>There should be a Delta that is not part of ResetIf, ResetNextIf, or PauseIf.</li>
-				<li>...on a memory address for which there is a matching Mem on the same address.</li>
-				<li>...in the core group or in <strong>all</strong> alt groups. There should be no way for the achievement to be triggered without a Delta being involved in some way.</li>
+				<li>There should be a <code>Delta</code> that is not part of <code>ResetIf</code>, <code>ResetNextIf</code>, or <code>PauseIf</code>.</li>
+				<li>...on a memory address for which there is a corresponding <code>Mem</code> constraint on the same address.</li>
+				<li>...in the core group or in <strong>all</strong> alt groups. There should be no way for the achievement to be triggered without a <code>Delta</code> being involved in some way.</li>
 			</ul>
 		</ul>
 	);
@@ -539,7 +539,6 @@ function* check_deltas(logic)
 		return;
 	}
 
-	let delta_in_req = false;
 	let corememset = new Set();
 	let _prefix = '';
 	for (const [ri, req] of logic.groups[0].entries())
@@ -553,6 +552,8 @@ function* check_deltas(logic)
 			_prefix = '';
 		}
 	}
+
+	let deltanotes = [];
 
 	const PAUSERESET = new Set([ReqFlag.RESETIF, ReqFlag.RESETNEXTIF, ReqFlag.PAUSEIF]);
 	let delta_groups = logic.groups.map((g, gi) =>
@@ -581,8 +582,9 @@ function* check_deltas(logic)
 			else
 			{
 				// a delta only counts if it has a matching mem value
-				has_delta ||= req.lhs && req.lhs.type == ReqType.DELTA && memset.has(_prefix + req.lhs.toString());
-				has_delta ||= req.rhs && req.rhs.type == ReqType.DELTA && memset.has(_prefix + req.rhs.toString());
+				for (let op of [req.lhs, req.rhs])
+					if (op && op.type == ReqType.DELTA)
+						has_delta ||= memset.has(_prefix + op.toString());
 				_prefix = '';
 			}
 			
@@ -597,8 +599,10 @@ function* check_deltas(logic)
 	});
 
 	// either the core group must have the valid mem/delta check, or *all* alt groups
-	if (!delta_groups[0] && (delta_groups.length == 1 || !delta_groups.slice(1).every(x => x)))
-		yield new Issue(Feedback.IMPROPER_DELTA, null, DELTA_FEEDBACK);
+	if (delta_groups[0] || (delta_groups.length > 1 && delta_groups.slice(1).every(x => x))) return;
+	
+	// we know there's an issue
+	yield new Issue(Feedback.IMPROPER_DELTA, null, DELTA_FEEDBACK);
 }
 
 function* check_missing_notes(logic)
