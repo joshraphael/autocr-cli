@@ -220,7 +220,9 @@ class AchievementSet
 			if (x.Title.toUpperCase().includes('[VOID]')) continue;
 			let ach = Achievement.fromJSON(x);
 			ach.index = i; // to preserve order from json file
-			this.achievements.set(ach.id, ach);
+			let achIdx = ach.id;
+			if (achIdx === 0) achIdx = ach.index;
+			this.achievements.set(achIdx, ach);
 		}
 
 		for (let [i, x] of json.Leaderboards.entries())
@@ -228,7 +230,9 @@ class AchievementSet
 			if (x.Hidden || x.Title.toUpperCase().includes('[VOID]')) continue;
 			let lb = Leaderboard.fromJSON(x);
 			lb.index = i; // to preserve order from json file
-			this.leaderboards.set(lb.id, lb);
+			let lbIdx = lb.id;
+			if (lbIdx === 0) lbIdx = lb.index;
+			this.leaderboards.set(lbIdx, lb);
 		}
 		
 		return this;
@@ -279,13 +283,17 @@ class AchievementSet
 					asset = Leaderboard.fromLocal(row);
 					asset.index = i + 1000000; // preserve order from file
 					if (asset.title.toUpperCase().includes('[VOID]')) continue;
-					this.leaderboards.set(asset.id, asset);
+					let lbIdx = asset.id;
+					if (lbIdx === 0) lbIdx = asset.index;
+					this.leaderboards.set(lbIdx, asset);
 					break;
 				default: // achievement
 					asset = Achievement.fromLocal(row);
 					asset.index = i + 1000000; // preserve order from file
 					if (asset.title.toUpperCase().includes('[VOID]')) continue;
-					this.achievements.set(asset.id, asset);
+					let achIdx = asset.id;
+					if (achIdx === 0) achIdx = asset.index;
+					this.achievements.set(achIdx, asset);
 					break;
 			}
 		}

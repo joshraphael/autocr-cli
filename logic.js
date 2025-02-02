@@ -237,7 +237,7 @@ class Requirement
 	lhs;
 	op = null;
 	rhs = null;
-	hits = 0;zz
+	hits = 0;
 	constructor({ flag = null, lhs, op = null, rhs = null, hits = 0 })
 	{
 		this.flag = flag;
