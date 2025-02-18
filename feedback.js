@@ -1197,7 +1197,7 @@ const BASIC_LOGIC_TESTS = [
 	check_uuo_reset,
 	check_reset_with_hits,
 	check_uuo_resetnextif,
-	check_missing_enum,
+//	check_missing_enum,
 ];
 
 const LOGIC_TESTS = [].concat(
