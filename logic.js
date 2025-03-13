@@ -209,7 +209,7 @@ class ReqOperand
 		return this.size.maxvalue;
 	}
 
-	toValueString() { return this.type && this.type.addr ? ('0x' + this.value.toString(16).padStart(8, '0')) : this.value.toString(); }
+	toValueString() { return this.type && this.type.addr ? ('0x' + this.value.toString(16).padStart(8, '0')) : ("" + this.value); }
 	toString() { return this.type == ReqType.RECALL ? this.type.prefix : this.toValueString(); }
 	toAnnotatedString() { return (this.type.addr ? `${this.type.name} ` : "") + this.toString(); }
 
@@ -219,7 +219,7 @@ class ReqOperand
 		let size = this.size ? this.size.name : "";
 		return this.type.name.padEnd(wReqType + 1, " ") +
 			size.padEnd(wMemSize + 1, " ") +
-			this.toValueString().padEnd(wValue + 1);
+			this.toString().padEnd(wValue + 1);
 	}
 	toObject() { return {...this}; }
 }
