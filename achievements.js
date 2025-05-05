@@ -87,7 +87,13 @@ class Asset
 	author = null;
 	title;
 	desc;
-	constructor() {  }
+	#ref = '';
+	constructor()
+	{
+		this.#ref = crypto.randomUUID();
+	}
+
+	toRefString(){ return `asset-${this.#ref}`; }
 }
 
 class Achievement extends Asset
@@ -189,11 +195,10 @@ class Leaderboard extends Asset
 		return FAST_WORDS.some(x => this.desc.toLowerCase().includes(x) || this.title.toLowerCase().includes(x));
 	}
 
-	isTime() { return this.format.category == "time" || this.#usesFastWords(); }
 	getType()
 	{
 		if (this.#usesFastWords()) return "speedrun";
-		if (this.isTime()) return this.lower_is_better ? "speedrun" : "survival";
+		if (this.format.category == "time") return this.lower_is_better ? "speedrun" : "survival";
 		return this.lower_is_better ? "min score" : "high score";
 	}
 }
@@ -323,6 +328,8 @@ class CodeNote
 		if (!this.isProbablePointer())
 			this.enum = CodeNote.parseEnumerations(note);
 	}
+
+	toRefString() { return `note-${this.addr}`; }
 
 	isArray() { return this.size >= (this.type ? this.type.bytes : 1) * 2; }
 

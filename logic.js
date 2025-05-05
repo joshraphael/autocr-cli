@@ -238,6 +238,7 @@ class Requirement
 	op = null;
 	rhs = null;
 	hits = 0;
+	#ref = '';
 	constructor({ flag = null, lhs, op = null, rhs = null, hits = 0 })
 	{
 		this.flag = flag;
@@ -245,8 +246,11 @@ class Requirement
 		this.op = op;
 		this.rhs = rhs;
 		this.hits = 0;
+
+		this.#ref = crypto.randomUUID();
 	}
 
+	toRefString() { return `req-${this.#ref}`; }
 	clone() { return new Requirement({...this}); }
 	hasHits() { return !this.flag || !this.flag.scalable; }
 

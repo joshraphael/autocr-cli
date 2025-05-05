@@ -9,7 +9,7 @@ function tc_minor(word) { return TITLE_CASE_MINORS.has(word); }
 function make_title_case(phrase)
 {
 	function tc(s) { return s.charAt(0).toUpperCase() + s.substring(1); }
-	return phrase.replace(/[0-9'\u2018\u2019\p{Script=Latin}]+/gu, function(x, i)
+	return phrase.replace(/[0-9'\u2018\u2019\p{Script=Latin}\-]+/gu, function(x, i)
 	{
 		if (x == x.toUpperCase()) return x; // assume allcaps for a reason
 		if (i == 0 || i + x.length == phrase.length) return tc(x);
@@ -107,7 +107,7 @@ const Feedback = Object.freeze({
 		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
 	IMPROPER_DELTA: { severity: FeedbackSeverity.INFO, desc: "Proper use of Delta can help identify the precise moment that an achievement should trigger.",
 		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
-	BAD_PRIOR: { severity: FeedbackSeverity.WARN, desc: "Invalid use of Prior. See below for more information.",
+	BAD_PRIOR: { severity: FeedbackSeverity.WARN, desc: "Questionable use of Prior. See below for more information.",
 		ref: ['https://docs.retroachievements.org/developer-docs/prior-values.html',], },
 	COMMON_ALT: { severity: FeedbackSeverity.INFO, desc: "If every alt group contains the same bit of logic in common, it can be refactored back into the Core group.",
 		ref: [], },
@@ -461,10 +461,10 @@ function generate_set_stats(set)
 	stats.using_pauselock_alt_reset = achievements.filter(ach => ach.feedback.stats.pauselock_alt_reset > 0);
 
 	// count of achievements using each flag type
-	stats.using_flag = new Map(Object.values(ReqFlag).map(x => [x, 0]));
+	stats.using_flag = new Map(Object.values(ReqFlag).map(x => [x, new Set()]));
 	for (const ach of achievements)
 		for (const flag of ach.feedback.stats.unique_flags)
-			stats.using_flag.set(flag, stats.using_flag.get(flag) + 1);
+			stats.using_flag.get(flag).add(ach);
 
 	// count leaderboard types
 	let lbtype = stats.leaderboard_type = new Map();
@@ -1234,12 +1234,7 @@ const LEADERBOARD_TESTS = {
 	'STA': LOGIC_TESTS,
 	'CAN': BASIC_LOGIC_TESTS,
 	'SUB': BASIC_LOGIC_TESTS,
-	'VAL': [].concat(
-			[
-				check_source_mod_measured,
-			],
-			BASIC_LOGIC_TESTS,
-		),
+	'VAL': BASIC_LOGIC_TESTS,
 }
 
 function get_leaderboard_issues(lb)
