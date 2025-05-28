@@ -506,6 +506,14 @@ class CodeNote
 						memSize = MemSize.DBL32_BE;
 				}
 			}
+			else if (word.startsWith('bitflag') || word.startsWith('bitfield'))
+			{
+				if (!foundSize)
+				{
+					memSize = MemSize.BYTE;
+					wordIsSize = true;
+				}
+			}
 
 			if (word != ' ' && word != '-')
 			{
