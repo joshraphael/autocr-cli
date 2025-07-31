@@ -13,7 +13,7 @@ function make_title_case(phrase)
 	{
 		if (x == x.toUpperCase()) return x; // assume allcaps for a reason
 		if (i == 0 || i + x.length == phrase.length) return tc(x);
-		return tc_minor(x) ? x : tc(x);
+		return tc_minor(x.toLowerCase()) ? x.toLowerCase() : tc(x);
 	});
 }
 
@@ -122,6 +122,8 @@ const Feedback = Object.freeze({
 			'https://docs.retroachievements.org/developer-docs/memory-inspector.html',
 			'https://docs.retroachievements.org/guidelines/content/code-notes.html',
 		], },
+	POINTER_COMPARISON: { severity: FeedbackSeverity.INFO, desc: "Comparison between pointer and non-zero value is usually incorrect, unless pointing to data in ROM.",
+		ref: [], },
 	MISSING_ENUMERATION: { severity: FeedbackSeverity.WARN, desc: "A value was used that doesn't match any of the enumerated values in the code note.",
 		ref: ['https://docs.retroachievements.org/guidelines/content/code-notes.html#adding-values-and-labels',], },
 	SOURCE_MOD_MEASURED: { severity: FeedbackSeverity.ERROR, desc: "Placing a source modification on a Measured requirement can cause faulty values in older versions of RetroArch (pre-1.10.1).",
@@ -279,6 +281,7 @@ function generate_logic_stats(logic)
 	stats.unique_flags = new Set(logic.getFlags());
 	stats.unique_cmps = new Set(comparisons);
 	stats.unique_sizes = new Set(logic.getMemSizes().map(x => BitProficiency.has(x) ? MemSize.BYTE : x));
+	stats.unique_sizes_all = new Set(logic.getMemSizes());
 
 	// list of all chained requirements
 	let chains = [];
@@ -450,7 +453,7 @@ function generate_set_stats(set)
 	stats.all_sizes = all_logic_stats.reduce((a, e) => a.union(e.unique_sizes), new Set());
 
 	// number of achievements using bit operations, such as BitX and BitCount
-	stats.using_bit_ops = achievements.filter(ach => new Set(ach.feedback.stats.unique_sizes).intersection(BitProficiency).size > 0);
+	stats.using_bit_ops = achievements.filter(ach => new Set(ach.feedback.stats.unique_sizes_all).intersection(BitProficiency).size > 0);
 
 	// number of achievements using each feature
 	stats.using_alt_groups = achievements.filter(ach => ach.feedback.stats.alt_groups > 0);
@@ -558,6 +561,11 @@ function* check_deltas(logic)
 	const PAUSERESET = new Set([ReqFlag.RESETIF, ReqFlag.RESETNEXTIF, ReqFlag.PAUSEIF]);
 	let delta_groups = logic.groups.map((g, gi) =>
 	{
+		// If the group contains an always-false condition, it can never trigger.
+		// Therefore, it doesn't need a delta. Consider it "valid" for this check.
+		if (g.some(req => req.isAlwaysFalse()))
+			return true;
+
 		let has_delta = false;
 		let _prefix = '';
 
@@ -647,7 +655,7 @@ function* check_mismatch_notes(logic)
 			let lastreport = null;
 			if (!prev_addaddress) for (const operand of [req.lhs, req.rhs])
 			{
-				if (!operand || !operand.type || !operand.type.addr) continue;
+				if (!operand?.type?.addr) continue;
 				const note = get_note(operand.value, current.notes);
 				if (!note) continue;
 
@@ -660,6 +668,27 @@ function* check_mismatch_notes(logic)
 					</ul>);
 			}
 			prev_addaddress = req.flag == ReqFlag.ADDADDRESS;
+		}
+	}
+}
+
+function* check_pointers(logic)
+{
+	// check for pointer comparisons against a value that is non-zero
+	for (const [gi, g] of logic.groups.entries())
+	{
+		for (const [ri, req] of g.entries())
+		{
+			if (!req.lhs?.type?.addr) continue;
+			const note = get_note(req.lhs.value, current.notes);
+			if (!note) continue;
+
+			if (note.isProbablePointer() && req.isComparisonOperator() && req.rhs.type == ReqType.VALUE && req.rhs.value != 0)
+				yield new Issue(Feedback.POINTER_COMPARISON, req,
+					<ul>
+						<li>Accessing <code>{toDisplayHex(operand.value)}</code> as <code>{operand.size.name}</code></li>
+						<li>Matching code note at <code>{toDisplayHex(note.addr)}</code> is marked as <code>{note.type.name}</code></li>
+					</ul>);
 		}
 	}
 }
@@ -944,7 +973,7 @@ function HighlightedFeedback({text, pattern})
 const EMOJI_RE = /(\p{Emoji_Presentation})/gu;
 const TYPOGRAPHY_PUNCT = /([\u2018\u2019\u201C\u201D])/gu;
 const FOREIGN_RE = /([\p{Script=Arabic}\p{Script=Armenian}\p{Script=Bengali}\p{Script=Bopomofo}\p{Script=Braille}\p{Script=Buhid}\p{Script=Canadian_Aboriginal}\p{Script=Cherokee}\p{Script=Cyrillic}\p{Script=Devanagari}\p{Script=Ethiopic}\p{Script=Georgian}\p{Script=Greek}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Han}\p{Script=Hangul}\p{Script=Hanunoo}\p{Script=Hebrew}\p{Script=Hiragana}\p{Script=Inherited}\p{Script=Kannada}\p{Script=Katakana}\p{Script=Khmer}\p{Script=Lao}\p{Script=Limbu}\p{Script=Malayalam}\p{Script=Mongolian}\p{Script=Myanmar}\p{Script=Ogham}\p{Script=Oriya}\p{Script=Runic}\p{Script=Sinhala}\p{Script=Syriac}\p{Script=Tagalog}\p{Script=Tagbanwa}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Thaana}\p{Script=Thai}\p{Script=Tibetan}\p{Script=Yi}]+)/gu;
-const NON_ASCII_RE = /([^\x00-\x7F]+)/g;
+const NON_ASCII_RE = /([^\x00-\x7F\xA5\xA3]+)/g;
 
 function* check_writing_mistakes(asset)
 {
@@ -1188,6 +1217,7 @@ function* check_duplicate_text(set)
 const BASIC_LOGIC_TESTS = [
 	check_missing_notes,
 	check_mismatch_notes,
+	check_pointers,
 	check_bad_chains,
 	check_priors,
 	check_stale_addaddress,
