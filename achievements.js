@@ -317,6 +317,7 @@ class CodeNote
 	note = "";
 	author = "";
 	enum = null;
+	assetCount = 0;
 
 	constructor(addr, note, author)
 	{

@@ -1,7 +1,7 @@
 // title case helpers
 const TITLE_CASE_MINORS = new Set([
 	'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'from', 'how', 'if', 'in', "n'", "'n'",
-	'neither', 'nor', 'of', 'on', 'only', 'onto', 'out', 'or', 'over', 'per', 'so', 'than', 'that', 
+	'neither', 'nor', 'of', 'on', 'only', 'onto', 'out', 'or', 'over', 'per', 'so', 'than', 
 	'the', 'to', 'until', 'up', 'upon', 'v', 'v.', 'versus', 'vs', 'vs.', 'via', 'when', 
 	'with', 'without', 'yet',
 ]);
@@ -394,8 +394,21 @@ function generate_code_note_stats(notes)
 	}
 
 	stats.notes_count = notes.length;
-	let all_addresses = current.set.getAchievements().reduce((a, e) => a.concat(e.logic.getAddresses()), []);
-	let used_notes = notes.filter(x => all_addresses.some(y => x.contains(y)));
+	let asset_addresses = [...current.set.getAchievements().map(e => e.logic.getAddresses()),
+		...current.set.getLeaderboards().map(e => e.components).flatMap(cmps => Object.values(cmps)).map(cmp => cmp.getAddresses())
+	];
+
+	if (current.rp) {
+		const display_cond_addrs = current.rp.display.map(display => display.condition).filter(cond => cond !== null).flatMap(cond => cond.getAddresses());
+		const lookup_addrs = current.rp.display.flatMap(display => display.lookups).flatMap(lookup => lookup.calc.getAddresses());
+		asset_addresses.push([...display_cond_addrs, ...lookup_addrs]);
+	}
+
+	notes.forEach(note => {
+		note.assetCount = asset_addresses.filter(addrs => addrs.includes(note.addr)).length;
+	});
+
+	let used_notes = notes.filter(x => x.assetCount > 0);
 
 	stats.notes_used = used_notes.length;
 	stats.notes_unused = stats.notes_count - stats.notes_used;
@@ -684,11 +697,7 @@ function* check_pointers(logic)
 			if (!note) continue;
 
 			if (note.isProbablePointer() && req.isComparisonOperator() && req.rhs.type == ReqType.VALUE && req.rhs.value != 0)
-				yield new Issue(Feedback.POINTER_COMPARISON, req,
-					<ul>
-						<li>Accessing <code>{toDisplayHex(operand.value)}</code> as <code>{operand.size.name}</code></li>
-						<li>Matching code note at <code>{toDisplayHex(note.addr)}</code> is marked as <code>{note.type.name}</code></li>
-					</ul>);
+				yield new Issue(Feedback.POINTER_COMPARISON, req); // TODO: provide better feedback
 		}
 	}
 }
@@ -957,7 +966,7 @@ function* check_title_case(asset)
 					<li><a href={`https://titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}`}>titlecaseconverter.com</a></li>
 					<li><a href={`https://capitalizemytitle.com/style/Chicago/?title=${q}`}>capitalizemytitle.com</a></li>
 				</ul>
-				<li><em>Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully.</em></li>
+				<li><em>Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully. When in doubt, please rely on the sites linked above.</em></li>
 			</ul>);
 	}
 }
@@ -1282,6 +1291,7 @@ function get_leaderboard_issues(lb)
 
 function assess_achievement(ach)
 {
+	console.log('assessing', ach);
 	let res = new Assessment();
 
 	res.stats = generate_logic_stats(ach.logic);
