@@ -9,10 +9,21 @@ function tc_minor(word) { return TITLE_CASE_MINORS.has(word); }
 function make_title_case(phrase)
 {
 	function tc(s) { return s.charAt(0).toUpperCase() + s.substring(1); }
-	return phrase.replace(/[0-9'\u2018\u2019\p{Script=Latin}\-]+/gu, function(x, i)
+	return phrase.replace(/[0-9'\u2018\u2019\p{Script=Latin}]+/gu, function(x, i)
 	{
-		if (x == x.toUpperCase()) return x; // assume allcaps for a reason
+		// if the word is presented in allcaps, assume it is done so intentionally
+		if (x == x.toUpperCase()) return x;
+		// first and last word of a phrase should be capitalized
 		if (i == 0 || i + x.length == phrase.length) return tc(x);
+		// if this is part of a hyphenated word, don't change it
+		if (phrase[i-1] == '-') return x;
+		// first word of a new sentence should be capitalized again
+		for (let j = i - 1; j >= 0; j--)
+		{
+			if ('.!?:;-'.includes(phrase[j])) return tc(x);
+			else if (!phrase[j].match(/[\s"]/)) break;
+		}
+		// otherwise, just base it off of the minors rule
 		return tc_minor(x.toLowerCase()) ? x.toLowerCase() : tc(x);
 	});
 }
@@ -132,7 +143,7 @@ const Feedback = Object.freeze({
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/pauseif.html#pauseif-with-hit-counts',], },
 	HIT_NO_RESET: { severity: FeedbackSeverity.WARN, desc: "Hit counts require a reset, either via ResetIf or ResetNextIf.",
 		ref: ['https://docs.retroachievements.org/developer-docs/hit-counts.html',], },
-	USELESS_ANDNEXT: { severity: FeedbackSeverity.WARN, desc: "Combining requirements with AND is the default behavior. Useless AndNext flags should be removed.",
+	USELESS_ANDNEXT: { severity: FeedbackSeverity.INFO, desc: "Combining requirements with AND is the default behavior. Useless AndNext flags should be removed.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/andnext-ornext.html',], },
 	USELESS_ALT: { severity: FeedbackSeverity.ERROR, desc: "A Reset-only Alt group is considered satisfied, making all other Alt groups useless.",
 		ref: [], },
@@ -161,10 +172,12 @@ class Issue
 {
 	type;
 	target;
+	severity;
 	detail = [];
 	constructor(type, target, detail = null)
 	{
 		this.type = type;
+		this.severity = type.severity;
 		this.target = target;
 		this.detail = detail;
 	}
@@ -196,18 +209,8 @@ class Assessment
 	constructor() {  }
 
 	#allissues() { return [].concat(...this.issues); }
-	status() { return Math.max(FeedbackSeverity.PASS, ...this.#allissues().map(x => x.type.severity)); }
+	status() { return Math.max(FeedbackSeverity.PASS, ...this.#allissues().map(x => x.severity)); }
 	pass() { return this.status() < FeedbackSeverity.WARN; }
-}
-
-function get_note(addr, notes = [])
-{
-	const _notes = notes ?? [];
-	// reverse loop because in the case of overlapping code notes,
-	// the later one is likely more specific
-	for (let i = _notes.length - 1; i >= 0; i--)
-		if (_notes[i].contains(addr)) return _notes[i];
-	return null;
 }
 
 function* missing_notes(logic)
@@ -221,7 +224,7 @@ function* missing_notes(logic)
 			for (const operand of [req.lhs, req.rhs])
 			{
 				if (!operand || !operand.type || !operand.type.addr) continue;
-				if (!prev_addaddress && !get_note(operand.value, current.notes))
+				if (!prev_addaddress && !current.notes.get(operand.value))
 				{
 					if (lastreport == operand.value) continue;
 					yield { addr: operand.value, req: req, };
@@ -569,8 +572,6 @@ function* check_deltas(logic)
 		}
 	}
 
-	let deltanotes = [];
-
 	const PAUSERESET = new Set([ReqFlag.RESETIF, ReqFlag.RESETNEXTIF, ReqFlag.PAUSEIF]);
 	let delta_groups = logic.groups.map((g, gi) =>
 	{
@@ -633,24 +634,82 @@ function* check_missing_notes(logic)
 	
 	for (const [gi, g] of logic.groups.entries())
 	{
-		let prev_addaddress = false;
+		let chain = [];
+		let chainIsDynamic = false;
+
 		for (const [ri, req] of g.entries())
 		{
+			// Pointer Chain Logic:
+			// If this requirement is an Add Address, we build up the chain context
+			// and skip validation, as these are intermediate steps.
+			if (req.flag == ReqFlag.ADDADDRESS)
+			{
+				// If the AddAddress uses a Recall operand, the pointer becomes dynamic/unknown at static analysis time.
+				// We mark the chain as dynamic so we can skip validating the subsequent leaf.
+				if (req.lhs && req.lhs.type == ReqType.RECALL) {
+					chainIsDynamic = true;
+				}
+
+				// If the chain starts with a small memory read (8-bit/16-bit), 
+				// it is likely an Array Indexing operation (Index + Base) rather than a Pointer (Base + Offset).
+				// In this case, we do not add it to the pointer chain context, so the next line is validated 
+				// as a standalone Base address.
+				// We must still validate the Index address itself here.
+				if (chain.length === 0 && req.lhs && req.lhs.type.addr && req.lhs.size && req.lhs.size.bytes < 3) {
+					if (!current.notes.get(req.lhs.value)) {
+						yield new Issue(Feedback.MISSING_NOTE, req,
+							<ul>
+								<li>Address {toDisplayHex(req.lhs.value)} missing note</li>
+							</ul>);
+					}
+					// Do not add to chain; treat as index adjustment
+					continue;
+				}
+
+				if (chain.length === 0 && req.lhs && req.lhs.type.addr) {
+					chain.push({ type: 'base', value: req.lhs.value });
+				} else if (req.lhs && req.lhs.type.addr) { 
+					chain.push({ type: 'offset', value: req.lhs.value });
+				}
+				if (req.rhs && req.rhs.type.addr) {
+					chain.push({ type: 'offset', value: req.rhs.value });
+				}
+				continue;
+			}
+
+			// Processing Leaf (or non-pointer instruction).
+			// If the chain involves dynamic components (Recall), we cannot statically verify notes.
+			if (chainIsDynamic) {
+				chain = [];
+				chainIsDynamic = false;
+				continue;
+			}
+
 			let lastreport = null;
-			if (!prev_addaddress) for (const operand of [req.lhs, req.rhs])
+			for (const operand of [req.lhs, req.rhs])
 			{
 				if (!operand || !operand.type || !operand.type.addr) continue;
-				const note = get_note(operand.value, current.notes);
-				if (note) continue;
+
+				// Use the existing note parsing logic to see if this address (with chain context)
+				// resolves to any note text.
+				const noteText = current.notes.get_text(operand.value, chain);
+				if (noteText) continue;
 
 				if (lastreport == operand.value) continue;
 				lastreport = operand.value;
+				
+				let msg = `Address ${toDisplayHex(operand.value)} missing note`;
+				if (chain.length > 0) msg += " (or pointer base missing)";
+
 				yield new Issue(Feedback.MISSING_NOTE, req,
 					<ul>
-						<li>Address <code>{toDisplayHex(operand.value)}</code> missing note</li>
+						<li>{msg}</li>
 					</ul>);
 			}
-			prev_addaddress = req.flag == ReqFlag.ADDADDRESS;
+			
+			// Reset chain after processing the leaf
+			chain = [];
+			chainIsDynamic = false;
 		}
 	}
 }
@@ -669,7 +728,7 @@ function* check_mismatch_notes(logic)
 			if (!prev_addaddress) for (const operand of [req.lhs, req.rhs])
 			{
 				if (!operand?.type?.addr) continue;
-				const note = get_note(operand.value, current.notes);
+				const note = current.notes.get(operand.value);
 				if (!note) continue;
 
 				// if the note size info is unknown, give up I guess
@@ -693,7 +752,7 @@ function* check_pointers(logic)
 		for (const [ri, req] of g.entries())
 		{
 			if (!req.lhs?.type?.addr) continue;
-			const note = get_note(req.lhs.value, current.notes);
+			const note = current.notes.get(req.lhs.value);
 			if (!note) continue;
 
 			if (note.isProbablePointer() && req.isComparisonOperator() && req.rhs.type == ReqType.VALUE && req.rhs.value != 0)
@@ -820,6 +879,34 @@ function* check_uncleared_hits(logic)
 				if (!has_resetif) yield new Issue(Feedback.HIT_NO_RESET, req);
 			}
 		}
+}
+
+function* check_uuo_andnext(logic)
+{
+	for (const [gi, g] of logic.groups.entries())
+	{
+		let andnext_chain = [], valid = false;
+		for (const [ri, req] of g.entries())
+		{
+			// add all AndNexts to a chain
+			if (req.flag == ReqFlag.ANDNEXT) andnext_chain.push(req);
+			// if there's an OrNext flag, I'm just going to let this go
+			if (req.flag == ReqFlag.ORNEXT) valid = true;
+			// if there are hitcounts *anywhere* in this chain, valid
+			if (req.hits != 0) valid = true;
+			
+			if (req.isTerminating())
+			{
+				// if the chain terminates at any actual flag, valid
+				if (req.flag || req.hits > 0) valid = true;
+
+				if (andnext_chain.length && !valid)
+					for (const andreq of andnext_chain)
+						yield new Issue(Feedback.USELESS_ANDNEXT, andreq);
+				andnext_chain = []; valid = false;
+			}
+		}
+	}
 }
 
 function* check_uuo_pause(logic)
@@ -1019,6 +1106,30 @@ function* check_brackets(asset)
 		yield new Issue(Feedback.DESC_BRACKETS, 'desc');
 }
 
+function* check_notes_bad_regions(notes)
+{
+	const regions = current.set?.console?.regions || [];
+	let ri = 0;
+	for (let note of notes)
+	{
+		while (ri < regions.length && note.addr > regions[ri].end) ri++;
+		if (ri >= regions.length) return;
+
+		const r = regions[ri];
+		if (note.addr >= r.start)
+		{
+			let issue = new Issue(Feedback.BAD_REGION_NOTE, note,
+				<ul>
+					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
+					<li>Appears in the {r.name} region (<code>{toDisplayHex(r.start)}-{toDisplayHex(r.end)}</code>)</li>
+				</ul>);
+			// dynamically adjust severity of the issue depending on the region
+			issue.severity = r.isError ? FeedbackSeverity.WARN : FeedbackSeverity.INFO;
+			yield issue;
+		}
+	}
+}
+
 function* check_notes_missing_size(notes)
 {
 	for (const note of notes)
@@ -1097,7 +1208,7 @@ function* check_rp_notes(rp)
 				for (const operand of [req.lhs, req.rhs])
 				{
 					if (!operand || !operand.type || !operand.type.addr) continue;
-					const note = get_note(operand.value, current.notes);
+					const note = current.notes.get(operand.value);
 
 					if (!prev_addaddress && !note)
 					{
@@ -1231,6 +1342,7 @@ const BASIC_LOGIC_TESTS = [
 	check_priors,
 	check_stale_addaddress,
 	check_uncleared_hits,
+	check_uuo_andnext,
 	check_pauselocks,
 	check_uuo_pause,
 	check_uuo_reset,
@@ -1254,6 +1366,7 @@ const PRESENTATION_TESTS = [
 ];
 
 const CODE_NOTE_TESTS = [
+	check_notes_bad_regions,
 	check_notes_missing_size,
 	check_notes_enum_hex,
 	check_notes_enum_size_mismatch,
@@ -1291,7 +1404,6 @@ function get_leaderboard_issues(lb)
 
 function assess_achievement(ach)
 {
-	console.log('assessing', ach);
 	let res = new Assessment();
 
 	res.stats = generate_logic_stats(ach.logic);
