@@ -1,20 +1,20 @@
-// title case helpers
-const TITLE_CASE_MINORS = new Set([
-	'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'from', 'how', 'if', 'in', "n'", "'n'",
-	'neither', 'nor', 'of', 'on', 'only', 'onto', 'out', 'or', 'over', 'per', 'so', 'than', 
-	'the', 'to', 'until', 'up', 'upon', 'v', 'v.', 'versus', 'vs', 'vs.', 'via', 'when', 
-	'with', 'without', 'yet',
-]);
-function tc_minor(word) { return TITLE_CASE_MINORS.has(word); }
 function make_title_case(phrase)
 {
+	const TITLE_CASE_MINORS = new Set([
+		'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'from', 'how', 'if', 'in', "n'", "'n'",
+		'neither', 'nor', 'of', 'on', 'only', 'onto', 'out', 'or', 'over', 'per', 'so', 'than', 
+		'the', 'to', 'until', 'up', 'upon', 'v', 'v.', 'versus', 'vs', 'vs.', 'via', 'when', 
+		'with', 'without', 'yet',
+	]);
+	function tc_minor(word) { return TITLE_CASE_MINORS.has(word); }
 	function tc(s) { return s.charAt(0).toUpperCase() + s.substring(1); }
+	const lastws = phrase.matchAll(/\s/g).toArray()?.pop()?.index;
 	return phrase.replace(/[0-9'\u2018\u2019\p{Script=Latin}]+/gu, function(x, i)
 	{
 		// if the word is presented in allcaps, assume it is done so intentionally
 		if (x == x.toUpperCase()) return x;
 		// first and last word of a phrase should be capitalized
-		if (i == 0 || i + x.length == phrase.length) return tc(x);
+		if (i == 0 || lastws + 1 == i) return tc(x);
 		// if this is part of a hyphenated word, don't change it
 		if (phrase[i-1] == '-') return x;
 		// first word of a new sentence should be capitalized again
@@ -35,37 +35,41 @@ const FeedbackSeverity = Object.freeze({
 	PASS: 0,
 	INFO: 1,
 	WARN: 2,
-	ERROR: 3,
+	FAIL: 3,
+	ERROR: 4,
 });
+
+const SEVERITY_TO_CLASS = ['pass', 'info', 'warn', 'fail', 'fail'];
+
 const Feedback = Object.freeze({
 	// writing policy feedback
-	TITLE_CASE: { severity: FeedbackSeverity.WARN, desc: "Titles should be written in title case according to the Chicago Manual of Style.",
+	TITLE_CASE: { severity: FeedbackSeverity.INFO, desc: "Titles should be written in title case according to the Chicago Manual of Style.",
 		ref: ["https://en.wikipedia.org/wiki/Title_case#Chicago_Manual_of_Style",], },
-	TITLE_PUNCTUATION: { severity: FeedbackSeverity.WARN, desc: "Achievement titles are not full sentences, and should not end with punctuation (exception: ?, !, or ellipses).",
+	TITLE_PUNCTUATION: { severity: FeedbackSeverity.INFO, desc: "Asset titles are not full sentences, and should not end with punctuation (exception: ?, !, or ellipses).",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#punctuation",], },
-	DESC_SENTENCE_CASE: { severity: FeedbackSeverity.INFO, desc: "Achievement descriptions should not be in title case, but rather sentence case.",
+	DESC_SENTENCE_CASE: { severity: FeedbackSeverity.INFO, desc: "Asset descriptions should not be in title case, but rather sentence case.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#capitalization-1",], },
-	DESC_PUNCT_CONSISTENCY: { severity: FeedbackSeverity.INFO, desc: "Achievement descriptions should be consistent about whether or not they end with punctuation.",
+	DESC_PUNCT_CONSISTENCY: { severity: FeedbackSeverity.INFO, desc: "Asset descriptions should be consistent about whether or not they end with punctuation.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#punctuation-1",], },
-	DESC_BRACKETS: { severity: FeedbackSeverity.INFO, desc: "Achievement descriptions should avoid brackets where possible.",
+	DESC_BRACKETS: { severity: FeedbackSeverity.INFO, desc: "Asset descriptions should avoid brackets where possible.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#brackets-parentheses",], },
-	DESC_SYMBOLS: { severity: FeedbackSeverity.INFO, desc: "Achievement descriptions are discouraged from using symbols to describe conditions.",
+	DESC_SYMBOLS: { severity: FeedbackSeverity.INFO, desc: "Asset descriptions are discouraged from using symbols to describe conditions.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#symbols-and-emojis",], },
-	DESC_QUOTES: { severity: FeedbackSeverity.INFO, desc: "Achievement descriptions should only use double quotation marks, except for quotes inside quotes.",
+	DESC_QUOTES: { severity: FeedbackSeverity.INFO, desc: "Asset descriptions should only use double quotation marks, except for quotes inside quotes.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#symbols-and-emojis",], },
 	NUM_FORMAT: { severity: FeedbackSeverity.INFO, desc: "Numbers should be formatted to conform to English standards (period for decimal separation, commas for grouping).",
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#number-formatting",], },
-	NO_EMOJI: { severity: FeedbackSeverity.WARN, desc: "Achievement titles and descriptions may not contain emoji.",
+	NO_EMOJI: { severity: FeedbackSeverity.WARN, desc: "Asset titles and descriptions may not contain emoji.",
 		ref: [
 			"https://docs.retroachievements.org/guidelines/content/writing-policy.html#emojis",
 			"https://docs.retroachievements.org/guidelines/content/writing-policy.html#symbols-and-emojis",
 		], },
 	SPECIAL_CHARS: { severity: FeedbackSeverity.WARN, desc: "Avoid using accented/special characters, as they can have rendering issues.",
 		ref: [
-			"https://docs.retroachievements.org/guidelines/content/naming-conventions.html",
+		//	"https://docs.retroachievements.org/guidelines/content/naming-conventions.html",
 			"https://docs.retroachievements.org/developer-docs/tips-and-tricks.html#naming-convention-tips",
 		], },
-	FOREIGN_CHARS: { severity: FeedbackSeverity.INFO, desc: `Achievement titles and descriptions should be written in English and should avoid special characters.`,
+	FOREIGN_CHARS: { severity: FeedbackSeverity.INFO, desc: `Asset titles and descriptions should be written in English and should avoid special characters, unless given special approval.`,
 		ref: ["https://docs.retroachievements.org/guidelines/content/writing-policy.html#language",], },
 
 	// set design errors
@@ -78,53 +82,89 @@ const Feedback = Object.freeze({
 		], },
 	ACHIEVEMENT_DIFFICULTY: { severity: FeedbackSeverity.INFO, desc: "A good spread of achievement difficulties is important.",
 		ref: ["https://docs.retroachievements.org/developer-docs/difficulty-scale-and-balance.html",], },
-	PROGRESSION_ONLY: { severity: FeedbackSeverity.WARN, desc: "Progression-only sets should be avoided. Consider adding custom challenge achievements to improve it.",
+	PROGRESSION_ONLY: { severity: FeedbackSeverity.FAIL, desc: "Progression-only sets should be avoided. Consider adding custom challenge achievements to improve it.",
 		ref: ["https://retroachievements.org/game/5442",], },
-	DUPLICATE_TITLES: { severity: FeedbackSeverity.WARN, desc: "Assets should all have unique titles to distinguish them from one another.",
+	DUPLICATE_TITLES: { severity: FeedbackSeverity.FAIL, desc: "Assets should all have unique titles to distinguish them from one another.",
 		ref: [], },
-	DUPLICATE_DESCRIPTIONS: { severity: FeedbackSeverity.INFO, desc: "Assets should have unique descriptions. Duplicate descriptions likely indicate redundant assets.",
+	DUPLICATE_DESCRIPTIONS: { severity: FeedbackSeverity.FAIL, desc: "Assets should have unique descriptions. Duplicate descriptions likely indicate redundant assets.",
 		ref: [], },
 
 	// code notes
-	NOTE_EMPTY: { severity: FeedbackSeverity.WARN, desc: "Empty code note.",
+	NOTE_EMPTY: { severity: FeedbackSeverity.INFO, desc: "Empty code note.",
 		ref: [], },
-	NOTE_NO_SIZE: { severity: FeedbackSeverity.WARN, desc: "Code notes must have size information.",
+	NOTE_NO_SIZE: { severity: FeedbackSeverity.FAIL, desc: "Code notes must have size information.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/code-notes.html#specifying-memory-addresses-size",], },
-	NOTE_ENUM_HEX: { severity: FeedbackSeverity.WARN, desc: "Enumerated hex values in code notes should be prefixed with \"0x\" to avoid being misinterpreted as decimal values.",
+	NOTE_ENUM_HEX: { severity: FeedbackSeverity.FAIL, desc: "Enumerated hex values in code notes should be prefixed with \"0x\" to avoid being misinterpreted as decimal values.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/code-notes.html#adding-values-and-labels",], },
-	NOTE_ENUM_TOO_LARGE: { severity: FeedbackSeverity.WARN, desc: "Enumerated values too large for code note size information.",
+	NOTE_ENUM_TOO_LARGE: { severity: FeedbackSeverity.FAIL, desc: "Enumerated values too large for code note size information.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/code-notes.html#adding-values-and-labels",], },
-	BAD_REGION_NOTE: { severity: FeedbackSeverity.WARN, desc: "Some memory regions are unsafe, redundant, or should not otherwise be used.",
+	BAD_REGION_NOTE: { severity: FeedbackSeverity.INFO, desc: "Some memory regions are unsafe, redundant, or should otherwise be avoided.",
 		ref: ['https://docs.retroachievements.org/developer-docs/console-specific-tips.html',], },
 	UNALIGNED_NOTE: { severity: FeedbackSeverity.INFO, desc: "16- and 32-bit data is often word-aligned.",
 		ref: [], },
 
 	// rich presence
-	NO_DYNAMIC_RP: { severity: FeedbackSeverity.WARN, desc: "Dynamic rich presence is required for all sets.",
+	NO_DYNAMIC_RP: { severity: FeedbackSeverity.FAIL, desc: "Dynamic rich presence is required for all sets.",
 		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#introduction',], },
-	NO_CONDITIONAL_DISPLAY: { severity: FeedbackSeverity.INFO, desc: "The use of conditional displays can improve the quality of rich presence by showing specific information based on the game mode.",
+	NO_CONDITIONAL_DISPLAY: { severity: FeedbackSeverity.WARN, desc: "The use of conditional displays can improve the quality of rich presence by showing specific information based on the game mode.",
 		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#conditional-display-strings',], },
-	MISSING_NOTE_RP: { severity: FeedbackSeverity.WARN, desc: "All addresses used in rich presence require a code note.",
+	NO_DEFAULT_RP: { severity: FeedbackSeverity.ERROR, desc: "Rich presence requires a default display (without a condition).",
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#conditional-display-strings',], },
+	MULTIPLE_DEFAULT_RP: { severity: FeedbackSeverity.ERROR, desc: "There should only be one default rich presence display (without a condition).",
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#conditional-display-strings',], },
+	DYNAMIC_DEFAULT_RP: { severity: FeedbackSeverity.WARN, desc: "The default display for rich presence should be static.",
 		ref: [], },
+	MISSING_NOTE_RP: { severity: FeedbackSeverity.FAIL, desc: "All addresses used in rich presence require a code note.",
+		ref: [], },
+
+	// NEW RP RULES (Ported from RARP Editor)
+	RP_MACRO_NAME_INVALID: { severity: FeedbackSeverity.ERROR, desc: "Macro name should not be empty or contain spaces.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#lookups'] },
+	RP_MACRO_BUILTIN_SHADOW: { severity: FeedbackSeverity.WARN, desc: "Macro name shadows a built-in macro.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#built-in-macros'] },
+	RP_MACRO_CASE_COLLISION: { severity: FeedbackSeverity.WARN, desc: "Macro names should be unique. Macros with the same name but different cases hurts readability.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#lookups'] },
+	RP_LOOKUP_OVERLAP: { severity: FeedbackSeverity.WARN, desc: "Lookup keys overlap.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#lookups'] },
+	RP_FORMATTER_DUPLICATE: { severity: FeedbackSeverity.INFO, desc: "Format type is already used by another formatter.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#tips-and-tricks'] },
+	RP_LOOKUP_EMPTY: { severity: FeedbackSeverity.ERROR, desc: "A Lookup must have at least one entry or a non-empty default value.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#lookups'] },
+	RP_MACRO_UNUSED: { severity: FeedbackSeverity.INFO, desc: "Unused lookups or formatters should be removed.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#lookups'] },
+	RP_CONDITION_MISSING_OPERATOR: { severity: FeedbackSeverity.ERROR, desc: "Condition line must have a comparison operator.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#conditional-display-strings'] },
+	RP_CONDITION_UNNECESSARY_FLAG: { severity: FeedbackSeverity.WARN, desc: "Certain flags have no effect on display conditions and are unnecessary.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#conditional-display-strings'] },
+	RP_MACRO_INVALID_REFERENCE: { severity: FeedbackSeverity.ERROR, desc: "Macros must match with a built-in or user-defined lookup or formatter.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#parse-errors'] },
+	RP_MACRO_EMPTY: { severity: FeedbackSeverity.ERROR, desc: "Macro has no logic defined.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#macros'] },
+	RP_MACRO_SYNTAX_ERROR: { severity: FeedbackSeverity.ERROR, desc: "Invalid macro logic syntax.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#macros'] },
+	RP_MACRO_SYNTAX_WARN: { severity: FeedbackSeverity.WARN, desc: "Macro logic warning.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#macros'] },
+	RP_LIMIT_EXCEEDED: { severity: FeedbackSeverity.WARN, desc: "Comparison value exceeds the maximum value for the memory size.", 
+		ref: ['https://docs.retroachievements.org/developer-docs/rich-presence.html#condition-syntax'] },
 		
 	// code errors
 	BAD_CHAIN: { severity: FeedbackSeverity.ERROR, desc: "The last requirement of a group cannot have a chaining flag.",
 		ref: [], },
-	MISSING_NOTE: { severity: FeedbackSeverity.WARN, desc: "All addresses used in achievement logic require a code note.",
+	MISSING_NOTE: { severity: FeedbackSeverity.FAIL, desc: "All addresses used in asset logic require a code note.",
 		ref: ["https://docs.retroachievements.org/guidelines/content/code-notes.html",], },
-	ONE_CONDITION: { severity: FeedbackSeverity.WARN, desc: "One-condition achievements are dangerous and should be avoided.",
+	ONE_CONDITION: { severity: FeedbackSeverity.FAIL, desc: "One-condition achievements are dangerous and should be avoided.",
 		ref: ["https://docs.retroachievements.org/developer-docs/tips-and-tricks.html#achievement-creation-tips",], },
-	MISSING_DELTA: { severity: FeedbackSeverity.WARN, desc: "Achievements must contain a Delta to isolate the specific moment that an achievement should trigger.",
+	MISSING_DELTA: { severity: FeedbackSeverity.FAIL, desc: "Logic must contain a Delta to isolate the specific moment that an asset should trigger.",
 		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
-	IMPROPER_DELTA: { severity: FeedbackSeverity.INFO, desc: "Proper use of Delta can help identify the precise moment that an achievement should trigger.",
+	IMPROPER_DELTA: { severity: FeedbackSeverity.WARN, desc: "Proper use of Delta can help identify the precise moment that an asset should trigger.",
 		ref: ['https://docs.retroachievements.org/developer-docs/delta-values.html',], },
-	BAD_PRIOR: { severity: FeedbackSeverity.WARN, desc: "Questionable use of Prior. See below for more information.",
+	BAD_PRIOR: { severity: FeedbackSeverity.FAIL, desc: "Questionable use of Prior. See below for more information.",
 		ref: ['https://docs.retroachievements.org/developer-docs/prior-values.html',], },
-	COMMON_ALT: { severity: FeedbackSeverity.INFO, desc: "If every alt group contains the same bit of logic in common, it can be refactored back into the Core group.",
+	COMMON_ALT: { severity: FeedbackSeverity.WARN, desc: "If every alt group contains the same bit of logic in common, it can be refactored back into the Core group.",
 		ref: [], },
 	STALE_ADDADDRESS: { severity: FeedbackSeverity.INFO, desc: "Stale references with AddAddress can be dangerous. Use caution when reading a pointer from the previous frame (AddAddress + Delta).",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/addaddress.html#using-delta-with-chained-pointers',], },
-	NEGATIVE_OFFSET: { severity: FeedbackSeverity.WARN, desc: "Negative pointer offsets are wrong in the vast majority of cases and are incompatible with the way pointers actually work.",
+	NEGATIVE_OFFSET: { severity: FeedbackSeverity.WARN, desc: "Negative pointer offsets are wrong in the vast majority of cases.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/addaddress.html#calculating-your-offset'], },
 	BAD_REGION_LOGIC: { severity: FeedbackSeverity.ERROR, desc: "Some memory regions are unsafe, redundant, or should not otherwise be used for achievement logic.",
 		ref: ['https://docs.retroachievements.org/developer-docs/console-specific-tips.html'], },
@@ -135,29 +175,31 @@ const Feedback = Object.freeze({
 		], },
 	POINTER_COMPARISON: { severity: FeedbackSeverity.INFO, desc: "Comparison between pointer and non-zero value is usually incorrect, unless pointing to data in ROM.",
 		ref: [], },
-	MISSING_ENUMERATION: { severity: FeedbackSeverity.WARN, desc: "A value was used that doesn't match any of the enumerated values in the code note.",
+	MISSING_ENUMERATION: { severity: FeedbackSeverity.FAIL, desc: "A value was used that doesn't match any of the enumerated values in the code note.",
 		ref: ['https://docs.retroachievements.org/guidelines/content/code-notes.html#adding-values-and-labels',], },
 	SOURCE_MOD_MEASURED: { severity: FeedbackSeverity.ERROR, desc: "Placing a source modification on a Measured requirement can cause faulty values in older versions of RetroArch (pre-1.10.1).",
 		ref: ['https://discord.com/channels/310192285306454017/386068797921951755/1247501391908307027',], },
-	PAUSELOCK_NO_RESET: { severity: FeedbackSeverity.WARN, desc: "PauseLocks require a reset, either via ResetNextIf, or a ResetIf in another group.",
+	PAUSELOCK_NO_RESET: { severity: FeedbackSeverity.FAIL, desc: "PauseLocks require a reset, either via ResetNextIf, or a ResetIf in another group.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/pauseif.html#pauseif-with-hit-counts',], },
-	HIT_NO_RESET: { severity: FeedbackSeverity.WARN, desc: "Hit counts require a reset, either via ResetIf or ResetNextIf.",
+	HIT_NO_RESET: { severity: FeedbackSeverity.FAIL, desc: "Hit counts require a reset, either via ResetIf or ResetNextIf.",
 		ref: ['https://docs.retroachievements.org/developer-docs/hit-counts.html',], },
-	USELESS_ANDNEXT: { severity: FeedbackSeverity.INFO, desc: "Combining requirements with AND is the default behavior. Useless AndNext flags should be removed.",
+	USELESS_ANDNEXT: { severity: FeedbackSeverity.WARN, desc: "Combining requirements with AND is the default behavior. Useless AndNext flags should be removed.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/andnext-ornext.html',], },
 	USELESS_ALT: { severity: FeedbackSeverity.ERROR, desc: "A Reset-only Alt group is considered satisfied, making all other Alt groups useless.",
 		ref: [], },
-	UUO_RESET: { severity: FeedbackSeverity.WARN, desc: "ResetIf should only be used with achievements that have hitcounts.",
+	UUO_RESET: { severity: FeedbackSeverity.FAIL, desc: "ResetIf should only be used with requirements containing hit targets.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/resetif.html',], },
-	UUO_RNI: { severity: FeedbackSeverity.WARN, desc: "ResetNextIf should only be used with requirements that have hitcounts, and must be placed immediately before the requirement with the hits.",
+	UUO_RNI: { severity: FeedbackSeverity.FAIL, desc: "ResetNextIf should only be used with requirements containing hit targets, and must be placed immediately before the requirement with the hit target.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/resetnextif.html',], },
-	UUO_PAUSE: { severity: FeedbackSeverity.WARN, desc: "PauseIf should only be used with requirements that have hitcounts.",
+	UUO_PAUSE: { severity: FeedbackSeverity.FAIL, desc: "PauseIf should only be used with requirements containing hit targets.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/pauseif.html',], },
-	PAUSING_MEASURED: { severity: FeedbackSeverity.PASS, desc: "PauseIf should only be used with requirements that have hitcounts, unless being used to freeze updates to a Measured requirement.",
+	ADDHITS_WITHOUT_TARGET: { severity: FeedbackSeverity.ERROR, desc: "AddHits in a chain should end in a hit target. Without a hit target, AddHits does nothing.",
+		ref: [], },
+	PAUSING_MEASURED: { severity: FeedbackSeverity.PASS, desc: "PauseIf should only be used with requirements containing hit targets, unless being used to freeze updates to a Measured requirement.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/measured.html#measured',], },
-	RESET_HITCOUNT_1: { severity: FeedbackSeverity.INFO, desc: "A ResetIf or ResetNextIf with a hitcount of 1 does not require a hitcount. The hitcount can be safely removed.",
+	RESET_HITCOUNT_1: { severity: FeedbackSeverity.WARN, desc: "A ResetIf or ResetNextIf with a hitcount of 1 does not require a hitcount. The hitcount can be safely removed.",
 		ref: ['https://docs.retroachievements.org/developer-docs/flags/resetif.html',], },
-	USELESS_ADDSUB: { severity: FeedbackSeverity.WARN, desc: "Using AddSource and SubSource is better supported in old emulators, and should be preferred where possible.",
+	USELESS_ADDSUB: { severity: FeedbackSeverity.FAIL, desc: "Using AddSource and SubSource is better supported in old emulators, and should be preferred where possible.",
 		ref: [
 			'https://docs.retroachievements.org/developer-docs/flags/addsource.html',
 			'https://docs.retroachievements.org/developer-docs/flags/subsource.html',
@@ -210,7 +252,7 @@ class Assessment
 
 	#allissues() { return [].concat(...this.issues); }
 	status() { return Math.max(FeedbackSeverity.PASS, ...this.#allissues().map(x => x.severity)); }
-	pass() { return this.status() < FeedbackSeverity.WARN; }
+	pass() { return this.status() < FeedbackSeverity.FAIL; }
 }
 
 function* missing_notes(logic)
@@ -302,19 +344,20 @@ function generate_logic_stats(logic)
 	// length of longest requirement chain
 	stats.max_chain = Math.max(...chains.map(x => x.length));
 
-	// count of achievements with hit counts
-	stats.hit_counts_one = flat.filter(x => x.hits == 1).length;
-	stats.hit_counts_many = flat.filter(x => x.hits > 1).length;
+	// count of requirements with hit counts
+	stats.hit_targets = flat.filter(x => x.hits > 0).length;
+	stats.checkpoint_hits = flat.filter(x => !PAUSERESET.has(x.flag) && x.hits == 1).length;
+	stats.hit_target_many = flat.filter(x => x.hits > 1).length;
 
-	// count of achievements with PauseIf
+	// count of requirements with PauseIf
 	stats.pause_ifs = flat.filter(x => x.flag == ReqFlag.PAUSEIF).length;
 	stats.pause_locks = flat.filter(x => x.flag == ReqFlag.PAUSEIF && x.hits > 0).length;
 
-	// count of achievements with ResetIf
+	// count of requirements with ResetIf
 	stats.reset_ifs = flat.filter(x => x.flag == ReqFlag.RESETIF).length;
 	stats.reset_with_hits = flat.filter(x => x.flag == ReqFlag.RESETIF && x.hits > 0).length;
 
-	// count of achievements with Deltas and Prior
+	// count of requirements with Deltas and Prior
 	stats.deltas = [...operands].filter(x => x.type == ReqType.DELTA).length;
 	stats.priors = [...operands].filter(x => x.type == ReqType.PRIOR).length;
 	
@@ -354,6 +397,22 @@ function generate_logic_stats(logic)
 
 	let smod = stats.source_modification = new Map(['*', '/', '&', '^', '%', '+', '-'].map(x => [x, 0]));
 	for (let req of flat) if (smod.has(req.op)) smod.set(req.op, smod.get(req.op) + 1);
+
+	// is Remember/Recall used in this logic?
+	stats.remember_recall = (
+		flat.some(x => x.flag == ReqFlag.REMEMBER) || 
+		[...operands].some(x => x.type == ReqType.RECALL)
+	);
+
+	// count of achievements with mixed AndNext and OrNext
+	stats.mixed_andor_chains = chains.filter(ch => (
+		ch.some(req => req.flag == ReqFlag.ANDNEXT) && ch.some(req => req.flag == ReqFlag.ORNEXT)
+	)).length;
+
+	// count of achievements with AddHits as a complex-OR
+	stats.addhits_complex_or = chains.filter(ch => (
+		ch.some(req => req.flag == ReqFlag.ADDHITS) && ch[ch.length-1].hits == 1
+	)).length;
 
 	return stats;
 }
@@ -397,21 +456,22 @@ function generate_code_note_stats(notes)
 	}
 
 	stats.notes_count = notes.length;
-	let asset_addresses = [...current.set.getAchievements().map(e => e.logic.getAddresses()),
-		...current.set.getLeaderboards().map(e => e.components).flatMap(cmps => Object.values(cmps)).map(cmp => cmp.getAddresses())
+	let asset_addresses = [
+		...current.set.getAchievements().map(e => ({asset: e, addrs: e.logic.getAddresses()})),
+		...current.set.getLeaderboards().map(e => ({asset: e, addrs: Object.values(e.components).flatMap(cmp => cmp.getAddresses())})),
 	];
 
 	if (current.rp) {
 		const display_cond_addrs = current.rp.display.map(display => display.condition).filter(cond => cond !== null).flatMap(cond => cond.getAddresses());
 		const lookup_addrs = current.rp.display.flatMap(display => display.lookups).flatMap(lookup => lookup.calc.getAddresses());
-		asset_addresses.push([...display_cond_addrs, ...lookup_addrs]);
+		asset_addresses.push({asset: "Rich Presence", addrs: [...display_cond_addrs, ...lookup_addrs]});
 	}
 
 	notes.forEach(note => {
-		note.assetCount = asset_addresses.filter(addrs => addrs.includes(note.addr)).length;
+		note.assetList = asset_addresses.filter(e => e.addrs.includes(note.addr)).map(e => e.asset);
 	});
 
-	let used_notes = notes.filter(x => x.assetCount > 0);
+	let used_notes = notes.filter(x => x.assetList.length > 0);
 
 	stats.notes_used = used_notes.length;
 	stats.notes_unused = stats.notes_count - stats.notes_used;
@@ -474,10 +534,12 @@ function generate_set_stats(set)
 	// number of achievements using each feature
 	stats.using_alt_groups = achievements.filter(ach => ach.feedback.stats.alt_groups > 0);
 	stats.using_delta = achievements.filter(ach => ach.feedback.stats.deltas > 0);
-	stats.using_hitcounts = achievements.filter(ach => ach.feedback.stats.hit_counts_many > 0);
-	stats.using_checkpoint_hits = achievements.filter(ach => ach.feedback.stats.hit_counts_one > 0);
+	stats.using_prior = achievements.filter(ach => ach.feedback.stats.priors > 0);
+	stats.using_hitcounts = achievements.filter(ach => ach.feedback.stats.hit_target_many > 0);
+	stats.using_checkpoint_hits = achievements.filter(ach => ach.feedback.stats.checkpoint_hits > 0);
 	stats.using_pauselock = achievements.filter(ach => ach.feedback.stats.pause_locks > 0);
 	stats.using_pauselock_alt_reset = achievements.filter(ach => ach.feedback.stats.pauselock_alt_reset > 0);
+	stats.using_remember_recall = achievements.filter(ach => ach.feedback.stats.remember_recall);
 
 	// count of achievements using each flag type
 	stats.using_flag = new Map(Object.values(ReqFlag).map(x => [x, new Set()]));
@@ -572,7 +634,6 @@ function* check_deltas(logic)
 		}
 	}
 
-	const PAUSERESET = new Set([ReqFlag.RESETIF, ReqFlag.RESETNEXTIF, ReqFlag.PAUSEIF]);
 	let delta_groups = logic.groups.map((g, gi) =>
 	{
 		// If the group contains an always-false condition, it can never trigger.
@@ -650,13 +711,12 @@ function* check_missing_notes(logic)
 					chainIsDynamic = true;
 				}
 
-				// If the chain starts with a small memory read (8-bit/16-bit), 
+				// If the chain starts with a memory read that has NO matching code note,
 				// it is likely an Array Indexing operation (Index + Base) rather than a Pointer (Base + Offset).
 				// In this case, we do not add it to the pointer chain context, so the next line is validated 
-				// as a standalone Base address.
-				// We must still validate the Index address itself here.
-				if (chain.length === 0 && req.lhs && req.lhs.type.addr && req.lhs.size && req.lhs.size.bytes < 3) {
-					if (!current.notes.get(req.lhs.value)) {
+				// as a standalone Base address. We must still validate the Index address itself here.
+				if (chain.length === 0 && (!req.lhs || !req.lhs.type.addr || !ConditionFormatter.getEffectiveNote(current.notes, req.lhs.value))) {
+					if (req.lhs && req.lhs.type.addr) {
 						yield new Issue(Feedback.MISSING_NOTE, req,
 							<ul>
 								<li>Address {toDisplayHex(req.lhs.value)} missing note</li>
@@ -761,6 +821,24 @@ function* check_pointers(logic)
 	}
 }
 
+function* check_valid_offsets(logic)
+{
+	for (const [gi, g] of logic.groups.entries())
+	{
+		let isOffset = false;
+		for (const [ri, req] of g.entries())
+		{
+			if (isOffset)
+			{
+				for (const op of [req.lhs, req.rhs])
+					if (op && op.type.addr && op.value >= 0x80000000)
+						yield new Issue(Feedback.NEGATIVE_OFFSET, req);
+			}
+			isOffset = req.flag == ReqFlag.ADDADDRESS;
+		}
+	}
+}
+
 function* check_priors(logic)
 {
 	for (const [gi, g] of logic.groups.entries())
@@ -822,7 +900,11 @@ function* check_stale_addaddress(logic)
 function* check_oca(logic)
 {
 	if (!logic.value && logic.getMemoryLookups().size <= 1)
-		yield new Issue(Feedback.ONE_CONDITION, null);
+		yield new Issue(Feedback.ONE_CONDITION, null,
+			<ul>
+				<li>Trigger logic should make use of, at minimum, two different memory requirements to avoid misfires.</li>
+				<li><code>Mem 0xADDR</code> and <code>Delta 0xADDR</code> are considered to be one memory requirement.</li>
+			</ul>);
 }
 
 function* check_pauselocks(logic)
@@ -976,11 +1058,17 @@ function* check_uuo_reset(logic)
 function* check_reset_with_hits(logic)
 {
 	for (const [gi, g] of logic.groups.entries())
+	{
+		let has_addhits = false;
 		for (const [ri, req] of g.entries())
 		{
-			if (req.flag == ReqFlag.RESETIF && req.hits == 1)
+			if (!has_addhits && req.flag == ReqFlag.RESETIF && req.hits == 1)
 				yield new Issue(Feedback.RESET_HITCOUNT_1, req);
+
+			if (req.flag == ReqFlag.ADDHITS) has_addhits = true;
+			else if (!req.flag || !req.flag.chain) has_addhits = false;
 		}
+	}
 }
 
 function* check_uuo_resetnextif(logic)
@@ -998,10 +1086,13 @@ function* check_uuo_resetnextif(logic)
 					// if this is a combining flag like AddAddress or AndNext, the chain continues
 					if (!g[i].isTerminating()) continue;
 
+					// ResetNextIf with any Add/SubHits should always be valid
+					if ([ReqFlag.ADDHITS, ReqFlag.SUBHITS].includes(g[i].flag)) break;
+
 					// ResetNextIf with a measured should be fine in a value
 					if (logic.value && [ReqFlag.MEASURED, ReqFlag.MEASUREDP].includes(g[i].flag)) break;
 					
-					// RNI->PauseIf(0) is `Pause Until`
+					// RNI(1+)->PauseIf(0) is `Pause Until`
 					// ref: https://docs.retroachievements.org/developer-docs/achievement-templates.html#pause-until-using-pauseif-to-prevent-achievement-processing-until-some-condition-is-met
 					if (req.hits > 0 && g[i].flag == ReqFlag.PAUSEIF) break;
 					
@@ -1011,6 +1102,24 @@ function* check_uuo_resetnextif(logic)
 				}
 			}
 		}
+}
+
+function* check_uuo_addhits(logic)
+{
+	for (const [gi, g] of logic.groups.entries())
+	{
+		let has_addhits = false;
+		for (const [ri, req] of g.entries())
+		{
+			has_addhits ||= (req.flag == ReqFlag.ADDHITS || req.flag == ReqFlag.SUBHITS);
+			if (!req.flag || !req.flag.chain)
+			{
+				if (!logic.value && has_addhits && req.hits == 0)
+					yield new Issue(Feedback.ADDHITS_WITHOUT_TARGET, req);
+				has_addhits = false;
+			}
+		}
+	}
 }
 
 function* check_missing_enum(logic)
@@ -1048,10 +1157,10 @@ function* check_title_case(asset)
 		yield new Issue(Feedback.TITLE_CASE, 'title',
 			<ul>
 				<li>Automated suggestion: <em>{corrected_title}</em></li>
-				<li>Additional suggestions</li>
+				<li>Additional suggestions (links below have been auto-filled with original title)</li>
 				<ul>
-					<li><a href={`https://titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}`}>titlecaseconverter.com</a></li>
-					<li><a href={`https://capitalizemytitle.com/style/Chicago/?title=${q}`}>capitalizemytitle.com</a></li>
+					<li><a target="_blank" href={`https://titlecaseconverter.com/?style=CMOS&showExplanations=1&keepAllCaps=1&multiLine=1&highlightChanges=1&convertOnPaste=1&straightQuotes=1&title=${q}`}>titlecaseconverter.com</a> &mdash; preferred by Writing Team</li>
+					<li><a target="_blank" href={`https://capitalizemytitle.com/style/Chicago/?title=${q}`}>capitalizemytitle.com</a> &mdash; for backup feedback</li>
 				</ul>
 				<li><em>Warning: automated suggestions don't handle hyphenated or otherwise-separated words gracefully. When in doubt, please rely on the sites linked above.</em></li>
 			</ul>);
@@ -1069,7 +1178,7 @@ function HighlightedFeedback({text, pattern})
 const EMOJI_RE = /(\p{Emoji_Presentation})/gu;
 const TYPOGRAPHY_PUNCT = /([\u2018\u2019\u201C\u201D])/gu;
 const FOREIGN_RE = /([\p{Script=Arabic}\p{Script=Armenian}\p{Script=Bengali}\p{Script=Bopomofo}\p{Script=Braille}\p{Script=Buhid}\p{Script=Canadian_Aboriginal}\p{Script=Cherokee}\p{Script=Cyrillic}\p{Script=Devanagari}\p{Script=Ethiopic}\p{Script=Georgian}\p{Script=Greek}\p{Script=Gujarati}\p{Script=Gurmukhi}\p{Script=Han}\p{Script=Hangul}\p{Script=Hanunoo}\p{Script=Hebrew}\p{Script=Hiragana}\p{Script=Inherited}\p{Script=Kannada}\p{Script=Katakana}\p{Script=Khmer}\p{Script=Lao}\p{Script=Limbu}\p{Script=Malayalam}\p{Script=Mongolian}\p{Script=Myanmar}\p{Script=Ogham}\p{Script=Oriya}\p{Script=Runic}\p{Script=Sinhala}\p{Script=Syriac}\p{Script=Tagalog}\p{Script=Tagbanwa}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Thaana}\p{Script=Thai}\p{Script=Tibetan}\p{Script=Yi}]+)/gu;
-const NON_ASCII_RE = /([^\x00-\x7F\xA5\xA3]+)/g;
+const NON_ASCII_RE = /([^\x00-\x7F\xA5\xA3\p{L}]+)/gu;
 
 function* check_writing_mistakes(asset)
 {
@@ -1120,11 +1229,21 @@ function* check_notes_bad_regions(notes)
 		{
 			let issue = new Issue(Feedback.BAD_REGION_NOTE, note,
 				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
+					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code>: <code>{note.getHeader()}</code></li>
 					<li>Appears in the {r.name} region (<code>{toDisplayHex(r.start)}-{toDisplayHex(r.end)}</code>)</li>
+					{
+						r.isError ? <></> : (<ul>
+							<li><em>This is only a warning based on the way memory on {current.set?.console?.name} is commonly used. This is not necessarily an error, if memory is being used in a non-standard way.</em></li>
+						</ul>)
+					}
+					{
+						!r.transform ? <></> : (<ul>
+							<li><strong>Suggested fix:</strong> Move this note to the address <code>{toDisplayHex(r.transform(note.addr))}</code></li>
+						</ul>)
+					}
 				</ul>);
 			// dynamically adjust severity of the issue depending on the region
-			issue.severity = r.isError ? FeedbackSeverity.WARN : FeedbackSeverity.INFO;
+			issue.severity = r.isError ? FeedbackSeverity.FAIL : FeedbackSeverity.INFO;
 			yield issue;
 		}
 	}
@@ -1136,7 +1255,7 @@ function* check_notes_missing_size(notes)
 		if (note.type == null && note.size == 1)
 			yield new Issue(Feedback.NOTE_NO_SIZE, note,
 				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
+					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code>: <code>{note.getHeader()}</code></li>
 				</ul>);
 }
 
@@ -1154,7 +1273,7 @@ function* check_notes_enum_hex(notes)
 		if (found.length > 0)
 			yield new Issue(Feedback.NOTE_ENUM_HEX, note,
 				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
+					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code>: <code>{note.getHeader()}</code></li>
 					<li>Found potential hex values: {found.map((x, i) => <React.Fragment key={i}>
 						{i == 0 ? '' : ', '} <code>{x}</code>
 					</React.Fragment>)}</li>
@@ -1174,7 +1293,7 @@ function* check_notes_enum_size_mismatch(notes)
 		if (found.length > 0)
 			yield new Issue(Feedback.NOTE_ENUM_TOO_LARGE, note,
 				<ul>
-					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code></li>
+					<li>Code note at <code className="ref-link" data-ref={note.addr}>{toDisplayHex(note.addr)}</code>: <code>{note.getHeader()}</code></li>
 					<li>The code note is listed as <code>{note.type.name}</code>, which has a max value of <code>0x{(note.type.maxvalue.toString(16).toUpperCase())}</code></li>
 					<li>The following enumerated values are too large for this code note: {found.map((x, i) => <React.Fragment key={i}>
 						{i == 0 ? '' : ', '} <code>{x}</code>
@@ -1184,14 +1303,298 @@ function* check_notes_enum_size_mismatch(notes)
 	}
 }
 
+function* validate_condition_values(logic, context) {
+	let memTypes = new Set([ReqType.MEM, ReqType.DELTA, ReqType.PRIOR, ReqType.BCD, ReqType.INVERT]);
+	
+	for (let group of logic.groups) {
+		let hasAccumulator = false;
+		
+		for (let req of group) {
+			// If this requirement is an accumulator, mark the chain as active
+			if (req.flag && ['AddSource', 'SubSource'].includes(req.flag.name)) {
+				hasAccumulator = true;
+			}
+
+			if (req.op && ['=', '!=', '<', '<=', '>', '>='].includes(req.op) && req.lhs && req.rhs) {
+				// Only perform the limit check if we are NOT at the end of an accumulator chain
+				if (!hasAccumulator) {
+					if (memTypes.has(req.lhs.type) && req.rhs.type === ReqType.VALUE) {
+						let limit = req.lhs.maxValue();
+						if (limit !== null && limit !== Number.POSITIVE_INFINITY && req.rhs.value > limit) {
+							yield new Issue(Feedback.RP_LIMIT_EXCEEDED, req, <ul><li>In {context}: Comparison value <code>{req.rhs.value}</code> exceeds max value for <code>{req.lhs.size?.name}</code> ({limit}). This comparison will unlikely behave as expected.</li></ul>);
+						}
+					} else if (memTypes.has(req.rhs.type) && req.lhs.type === ReqType.VALUE) {
+						let limit = req.rhs.maxValue();
+						if (limit !== null && limit !== Number.POSITIVE_INFINITY && req.lhs.value > limit) {
+							yield new Issue(Feedback.RP_LIMIT_EXCEEDED, req, <ul><li>In {context}: Comparison value <code>{req.lhs.value}</code> exceeds max value for <code>{req.rhs.size?.name}</code> ({limit}). This comparison will unlikely behave as expected.</li></ul>);
+						}
+					}
+				}
+			}
+
+			// Reset the accumulator chain tracker if the current requirement does not logically carry the math forward
+			if (!req.flag || !['AddSource', 'SubSource', 'AddAddress'].includes(req.flag.name)) {
+				hasAccumulator = false;
+			}
+		}
+	}
+}
+
+function* validate_macro_logic(part, ds) {
+	let logic = part.logic;
+	if (!logic) return;
+	
+	yield* validate_condition_values(logic, `macro '{${part.text}}'`);
+	
+	let allSingletons = [];
+	let conditionalLines = [];
+	let totalValueProviders = 0;
+	
+	for (let group of logic.groups) {
+		let groupValueProviders = 0;
+		let isGroupChain = false;
+
+		for (let req of group) {
+			if (req.flag && ['AddAddress', 'AddSource', 'SubSource', 'Remember'].includes(req.flag.name)) isGroupChain = true;
+			
+			let isCmp = ['=', '!=', '<', '<=', '>', '>='].includes(req.op);
+			if (isCmp) {
+				conditionalLines.push(req);
+				if (req.flag && (req.flag.name === 'Measured' || req.flag.name === 'Measured%')) {
+					yield new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, req, <ul><li>In macro <code>{part.text}</code>, <code>Measured</code> cannot be combined with a comparison operator.</li></ul>);
+				}
+			} else {
+				allSingletons.push(req);
+				if (req.flag && (req.flag.name === 'Measured' || req.flag.name === 'Measured%')) {
+					groupValueProviders++;
+					totalValueProviders++;
+				}
+			}
+			
+			if (req.flag && req.flag.name === 'Trigger') {
+				yield new Issue(Feedback.RP_MACRO_SYNTAX_WARN, req, <ul><li>In macro <code>{part.text}</code>, the <code>Trigger</code> flag has no effect here.</li></ul>);
+			}
+		}
+
+		// Validation 1: Per-group Measured limit
+		if (groupValueProviders > 1) {
+			let issue = new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, ds, <ul><li>In macro <code>{part.text}</code>, a Value Group cannot have more than one <code>Measured</code> value.</li></ul>);
+			issue.macro = part.text;
+			yield issue;
+		}
+
+		// Validation 2: Per-group chain endpoint check
+		if (isGroupChain) {
+			let lastReq = group.length > 0 ? group[group.length - 1] : null;
+			if (lastReq && (!lastReq.flag || (lastReq.flag.name !== 'Measured' && lastReq.flag.name !== 'Measured%'))) {
+				yield new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, lastReq, <ul><li>In macro <code>{part.text}</code>, the arithmetic chain does not end with a <code>Measured</code> flag.</li></ul>);
+			}
+		}
+	}
+	
+	// Validation 3: Conditional macros must provide a value
+	if (conditionalLines.length > 0 && totalValueProviders === 0) {
+		let issue = new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, ds, <ul><li>In macro <code>{part.text}</code>, conditional logic exists but is missing a <code>Measured</code> flag to specify the return value.</li></ul>);
+		issue.macro = part.text;
+		yield issue;
+	}
+	
+	// Validation 4: If returning a Measured value, all non-chain lines MUST be conditions
+	if (totalValueProviders > 0) {
+		for (let group of logic.groups) {
+			for (let req of group) {
+				if (req.flag && (req.flag.name === 'Measured' || req.flag.name === 'Measured%')) continue;
+				if (req.flag && ['AddAddress', 'AddSource', 'SubSource', 'Remember'].includes(req.flag.name)) continue;
+				
+				let isCmp = ['=', '!=', '<', '<=', '>', '>='].includes(req.op);
+				if (!isCmp) {
+					yield new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, req, <ul><li>In macro <code>{part.text}</code>, this line is treated as a condition (since a <code>Measured</code> value exists) and must have a comparison operator.</li></ul>);
+				}
+			}
+		}
+	}
+	
+	// Validation 5: Multiple raw addresses without comparisons/Measured flags
+	if (allSingletons.length > 1) {
+		let trueEndpoints = allSingletons.filter(c => !c.flag || !['AddAddress', 'AddSource', 'SubSource', 'Remember'].includes(c.flag.name));
+		if (trueEndpoints.length === 0 && allSingletons.length > 0) {
+			trueEndpoints.push(allSingletons[allSingletons.length - 1]);
+		}
+		if (trueEndpoints.length > 1) {
+			let hasMeasured = trueEndpoints.some(c => c.flag && (c.flag.name === 'Measured' || c.flag.name === 'Measured%'));
+			if (!hasMeasured) {
+				let issue = new Issue(Feedback.RP_MACRO_SYNTAX_ERROR, ds, <ul><li>In macro <code>{part.text}</code>, multiple memory addresses are provided without a comparison. One must be marked with a <code>Measured</code> flag.</li></ul>);
+				issue.macro = part.text;
+				// yield issue;
+			}
+		}
+	}
+}
+
+function* check_rp_lookups(rp) {
+	const builtInMacros = new Set(['Number', 'Unsigned', 'Score', 'Centiseconds', 'Seconds', 'Minutes', 'Fixed1', 'Fixed2', 'Fixed3', 'Float1', 'Float2', 'Float3', 'Float4', 'Float5', 'Float6', 'ASCIIChar', 'UnicodeChar']);
+	
+	let usedMacros = new Set();
+	rp.displayStrings.forEach(ds => ds.parts.filter(p => p.isMacro).forEach(p => usedMacros.add(p.text)));
+
+	for (let i = 0; i < rp.scriptLookups.length; i++) {
+		let lookup = rp.scriptLookups[i];
+		
+		if (!lookup.name || lookup.name.includes(" ")) {
+			yield new Issue(Feedback.RP_MACRO_NAME_INVALID, lookup, <ul>
+				<li>Name <code>{lookup.name}</code> should not be empty or contain spaces.</li>
+			</ul>);
+		}
+		if (builtInMacros.has(lookup.name)) {
+			yield new Issue(Feedback.RP_MACRO_BUILTIN_SHADOW, lookup, <ul><li><code>{lookup.name}</code> is a built-in formatter name.</li></ul>);
+		}
+		
+		let caseCollisions = rp.scriptLookups.filter(x => x !== lookup && x.name.toLowerCase() === lookup.name.toLowerCase() && x.name !== lookup.name);
+		if (caseCollisions.length > 0 && caseCollisions.every(x => lookup.name < x)) {
+			let conflictList = <React.Fragment>{caseCollisions.map((x, i) => 
+				<React.Fragment key={i}>{i == 0 ? '' : ', '} <code>{x}</code></React.Fragment>
+			)}</React.Fragment>;
+			yield new Issue(Feedback.RP_MACRO_CASE_COLLISION, lookup, <ul>
+				<li>Macro <code>{lookup.name}</code> conflicts with {conflictList}</li>
+			</ul>);
+		}
+		
+		for (let a = 0; a < lookup.entries.length; a++) {
+			let entryA = lookup.entries[a];
+			let startA = entryA.keyValue;
+			let endA = entryA.keyValueEnd !== null ? entryA.keyValueEnd : startA;
+			for (let b = a + 1; b < lookup.entries.length; b++) {
+				let entryB = lookup.entries[b];
+				let startB = entryB.keyValue;
+				let endB = entryB.keyValueEnd !== null ? entryB.keyValueEnd : startB;
+				if (startA <= endB && endA >= startB) {
+					yield new Issue(Feedback.RP_LOOKUP_OVERLAP, lookup, <ul>
+						<li>Key <code>{entryA.keyString}</code> overlaps with key <code>{entryB.keyString}</code> in <code>{lookup.name}</code>. The first entry will take precedence.</li>
+					</ul>);
+				}
+			}
+		}
+		
+		if (lookup.isFormatter()) {
+			/* // noop for now because this is often done for readability purposes
+			let duplicateFormatters = rp.scriptLookups.filter(x => x !== lookup && x.isFormatter() && x.format.toLowerCase() === lookup.format.toLowerCase());
+			if (duplicateFormatters.length > 0) {
+				yield new Issue(Feedback.RP_FORMATTER_DUPLICATE, lookup, <ul>
+					<li>The format type <code>{lookup.format}</code> is already used by another formatter.</li>
+				</ul>);
+			}
+			*/
+		} else if (lookup.format === "VALUE" && lookup.defaultVal !== null) {
+			if (lookup.entries.length === 0 && !lookup.defaultVal) {
+				yield new Issue(Feedback.RP_LOOKUP_EMPTY, lookup, <ul>
+					<li>Lookup <code>{lookup.name}</code> is empty.</li>
+				</ul>);
+			}
+		}
+		
+		if (!usedMacros.has(lookup.name)) {
+			yield new Issue(Feedback.RP_MACRO_UNUSED, lookup, <ul>
+				<li>Lookup/Formatter <code>{lookup.name}</code> is not currently used in any display string.</li>
+			</ul>);
+		}
+	}
+}
+
+function* check_rp_display_strings(rp) {
+	const builtInMacros = new Set(['Number', 'Unsigned', 'Score', 'Centiseconds', 'Seconds', 'Minutes', 'Fixed1', 'Fixed2', 'Fixed3', 'Float1', 'Float2', 'Float3', 'Float4', 'Float5', 'Float6', 'ASCIIChar', 'UnicodeChar']);
+	
+	for (let i = 0; i < rp.displayStrings.length; i++) {
+		let ds = rp.displayStrings[i];
+		
+		if (!ds.isDefault) {
+			if (!ds.conditionStr || ds.conditionStr.trim() === "") {
+				yield new Issue(Feedback.RP_CONDITION_MISSING_OPERATOR, ds, <ul><li>Conditional string should have a condition.</li></ul>);
+			} else if (ds.condition) {
+				yield* validate_condition_values(ds.condition, "the display condition");
+				
+				let warningFlags = new Set(["Measured", "Measured%", "MeasuredIf", "Trigger"]);
+				let arithmeticFlags = new Set(["AddAddress", "AddSource", "SubSource", "Remember"]);
+				let cmpOps = new Set(["=", "!=", "<", "<=", ">", ">="]);
+				
+				for (let group of ds.condition.groups) {
+					for (let req of group) {
+						if (req.flag && warningFlags.has(req.flag.name)) {
+							yield new Issue(Feedback.RP_CONDITION_UNNECESSARY_FLAG, req, <ul>
+								<li>The <code>{req.flag.name}</code> flag is not typically used in a display condition.</li>
+							</ul>);
+						}
+						if ((!req.flag || !arithmeticFlags.has(req.flag.name)) && !cmpOps.has(req.op)) {
+							yield new Issue(Feedback.RP_CONDITION_MISSING_OPERATOR, req, <ul>
+								<li>Condition line must have a comparison operator (e.g., <code>=</code>, <code>!=</code>, <code>&lt;</code>).</li>
+							</ul>);
+						}
+					}
+				}
+			}
+		}
+		
+		for (let part of ds.parts.filter(p => p.isMacro)) {
+			if (builtInMacros.has(part.text)) {
+				if (!part.parameter || part.parameter.trim() === "") {
+					let issue = new Issue(Feedback.RP_MACRO_EMPTY, ds, <ul><li>Built-in formatter <code>&#123;{part.text}&#125;</code> has no logic defined.</li></ul>);
+					issue.macro = part.text;
+					yield issue;
+				} else {
+					yield* validate_macro_logic(part, ds);
+				}
+				continue;
+			}
+			
+			let exactMatch = rp.scriptLookups.some(x => x.name === part.text);
+			if (!exactMatch) {
+				let suggestion = <React.Fragment></React.Fragment>;
+				let caseMatch = rp.scriptLookups.find(x => x.name.toLowerCase() === part.text.toLowerCase());
+				if (caseMatch) suggestion = <ul>
+						<li><em>Did you mean <code>&#123;{caseMatch.name}&#125;</code>? Macro names are case-sensitive.</em></li>
+					</ul>;
+				let issue = new Issue(Feedback.RP_MACRO_INVALID_REFERENCE, ds, <ul>
+					<li>Macro <code>&#123;{part.text}&#125;</code> does not point to any defined Lookup or Formatter.</li>
+					{suggestion}
+				</ul>);
+			}
+			
+			if (!part.parameter || part.parameter.trim() === "") {
+				let issue = new Issue(Feedback.RP_MACRO_EMPTY, ds, <ul><li>Macro <code>&#123;{part.text}&#125;</code> has no logic defined.</li></ul>);
+				issue.macro = part.text;
+				yield issue;
+			} else {
+				yield* validate_macro_logic(part, ds);
+			}
+		}
+	}
+}
+
 function* check_rp_dynamic(rp)
 {
-	if (!rp.display.some(x => x.condition != null))
+	if (!rp.displayStrings.some(x => !x.isDefault))
 	{
-		if (!rp.display.some(x => x.lookups.length > 0))
+		if (!rp.displayStrings.some(ds => ds.parts.some(p => p.isMacro)))
 			yield new Issue(Feedback.NO_DYNAMIC_RP, null);
 		else
 			yield new Issue(Feedback.NO_CONDITIONAL_DISPLAY, null);
+	}
+}
+
+function* check_rp_default(rp)
+{
+	let defaults = rp.displayStrings.filter(x => x.isDefault);
+	if (defaults.length == 0) {
+		yield new Issue(Feedback.NO_DEFAULT_RP, null);
+	} else if (defaults.length > 1) {
+		yield new Issue(Feedback.MULTIPLE_DEFAULT_RP, null);
+	} else {
+		if (defaults[0].parts.some(x => x.isMacro)) {
+			yield new Issue(Feedback.DYNAMIC_DEFAULT_RP, defaults[0],
+				<ul>
+					<li>Unknown state may produce unreliable output with memory lookups.</li>
+					<li>Consider <code>Playing {get_game_title() ?? "<Game Name>"}</code></li>
+				</ul>);
+		}
 	}
 }
 
@@ -1338,6 +1741,7 @@ const BASIC_LOGIC_TESTS = [
 	check_missing_notes,
 	check_mismatch_notes,
 	check_pointers,
+	check_valid_offsets,
 	check_bad_chains,
 	check_priors,
 	check_stale_addaddress,
@@ -1348,6 +1752,7 @@ const BASIC_LOGIC_TESTS = [
 	check_uuo_reset,
 	check_reset_with_hits,
 	check_uuo_resetnextif,
+	check_uuo_addhits,
 //	check_missing_enum,
 ];
 
@@ -1374,7 +1779,10 @@ const CODE_NOTE_TESTS = [
 
 const RICH_PRESENCE_TESTS = [
 	check_rp_dynamic,
+	check_rp_default,
 	check_rp_notes,
+    check_rp_lookups,
+	check_rp_display_strings,
 ];
 
 const SET_TESTS = [

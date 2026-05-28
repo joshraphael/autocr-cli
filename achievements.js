@@ -4,25 +4,28 @@ class MemRegion
 	end;
 	name;
 	isError = false;
+	transform = null;
 
-	constructor(start, end, name, isError=false)
+	constructor(start, end, name, isError, transform=null)
 	{
 		this.start = start;
 		this.end = end;
 		this.name = name;
 		this.isError = isError;
+		this.transform = transform;
 	}
 }
 
 // region data should be cross-referenced with
 // https://github.com/RetroAchievements/rcheevos/blob/develop/src/rcheevos/consoleinfo.c
+// https://github.com/RetroAchievements/rcheevos/blob/develop/include/rc_consoles.h
 const Console = Object.freeze({
 	// Nintendo
 	GB: { id: 4, name: "Game Boy", icon: "gb", 
 		regions: [
 			new MemRegion(0x0000, 0x7FFF, "ROM Data", true),
 			new MemRegion(0x8000, 0x9FFF, "Graphics Data", false),
-			new MemRegion(0xE000, 0xFDFF, "Echo RAM", true),
+			new MemRegion(0xE000, 0xFDFF, "Echo RAM", true, (x) => x - 0x2000),
 			new MemRegion(0xFE00, 0xFE9F, "Graphics Data", false),
 			new MemRegion(0xFEA0, 0xFF7F, "Unusable Memory", true),
 		]},
@@ -31,51 +34,82 @@ const Console = Object.freeze({
 			new MemRegion(0x0000, 0x3FFF, "ROM Bank", true),
 			new MemRegion(0x4000, 0x7FFF, "Switchable ROM Bank", true),
 			new MemRegion(0x8000, 0x9FFF, "Graphics Data", false),
-			new MemRegion(0xE000, 0xFDFF, "Echo RAM", true),
+			new MemRegion(0xE000, 0xFDFF, "Echo RAM", true, (x) => x - 0x2000),
 			new MemRegion(0xFE00, 0xFE9F, "Graphics Data", false),
 			new MemRegion(0xFEA0, 0xFF7F, "Unusable Memory", true),
 		]},
 	GBA: { id: 5, name: "Game Boy Advance", icon: "gba", },
 	NES: { id: 7, name: "NES/Famicom", icon: "nes", 
 		regions: [
-    		new MemRegion(0x0800, 0x0FFF, "Mirror RAM", true),
-    		new MemRegion(0x1000, 0x17FF, "Mirror RAM", true),
-    		new MemRegion(0x1800, 0x1FFF, "Mirror RAM", true),
-    		new MemRegion(0x2008, 0x3FFF, "Mirrored PPU Registers", true),
+			new MemRegion(0x0100, 0x01FF, "(possible) Stack", false),
+			new MemRegion(0x0800, 0x0FFF, "Mirror RAM", true, (x) => x - 0x0800),
+			new MemRegion(0x1000, 0x17FF, "Mirror RAM", true, (x) => x - 0x1000),
+			new MemRegion(0x1800, 0x1FFF, "Mirror RAM", true, (x) => x - 0x1800),
+			new MemRegion(0x2008, 0x3FFF, "Mirrored PPU Registers", true, (x) => 0x2000 + (x % 8)),
+		]},
+	FDS: { id: 81, name: "Famicom Disk System", icon: "fds", 
+		regions: [
+			new MemRegion(0x0100, 0x01FF, "(possible) Stack", false),
+			new MemRegion(0x0800, 0x0FFF, "Mirror RAM", true, (x) => x - 0x0800),
+			new MemRegion(0x1000, 0x17FF, "Mirror RAM", true, (x) => x - 0x1000),
+			new MemRegion(0x1800, 0x1FFF, "Mirror RAM", true, (x) => x - 0x1800),
+			new MemRegion(0x2008, 0x3FFF, "Mirrored PPU Registers", true, (x) => 0x2000 + (x % 8)),
 		]},
 	SNES: { id: 3, name: "SNES/Super Famicom", icon: "snes", },
 	N64: { id: 2, name: "Nintendo 64", icon: "n64", },
 	GCN: { id: 16, name: "GameCube", icon: "gc", },
 	WII: { id: 19, name: "Wii", icon: "wii", },
-	DS: { id: 18, name: "Nintendo DS", icon: "ds", },
+	DS: { id: 18, name: "Nintendo DS", icon: "ds", 
+		regions: [
+			new MemRegion(0x0400000, 0x0FFFFFF, "Unused", true),
+		]},
 	DSI: { id: 78, name: "Nintendo DSi", icon: "dsi", },
-	PKMN: { id: 24, name: "Pokemon Mini", icon: "mini", },
+	PKMN: { id: 24, name: "Pokemon Mini", icon: "mini",
+		regions: [
+			new MemRegion(0x0000, 0x0FFF, "BIOS RAM", false),
+		]},
 	VB: { id: 28, name: "Virtual Boy", icon: "vb", },
 
 	// Sony
-	PSX: { id: 12, name: "PlayStation", icon: "ps1", },
+	PSX: { id: 12, name: "PlayStation", icon: "ps1", 
+		regions: [
+			new MemRegion(0x0000000, 0x000FFFF, "Kernel RAM", true),
+		]},
 	PS2: { id: 21, name: "PlayStation 2", icon: "ps2",
 		regions: [
+			new MemRegion(0x0000000, 0x00FFFFF, "Kernel RAM", true),
 			new MemRegion(0x1FE0000, 0x1FFFFFF, "Probable Stack", false),
 		]},
-	PSP: { id: 41, name: "PlayStation Portable", icon: "psp", },
+	PSP: { id: 41, name: "PlayStation Portable", icon: "psp",
+		regions: [
+			new MemRegion(0x0000000, 0x07FFFFF, "Kernel RAM", true),
+		]},
 	
 	// Atari
 	A2600: { id: 25, name: "Atari 2600", icon: "2600", },
 	A7800: { id: 51, name: "Atari 7800", icon: "7800", 
 		regions: [
-    		new MemRegion(0x002800, 0x002FFF, "Mirror RAM", true),
-    		new MemRegion(0x003000, 0x0037FF, "Mirror RAM", true),
-    		new MemRegion(0x003800, 0x003FFF, "Mirror RAM", true),
+			new MemRegion(0x002800, 0x002FFF, "Mirror RAM", true, (x) => x - 0x0800),
+			new MemRegion(0x003000, 0x0037FF, "Mirror RAM", true, (x) => x - 0x1000),
+			new MemRegion(0x003800, 0x003FFF, "Mirror RAM", true, (x) => x - 0x1800),
 		]},
 	JAG: { id: 17, name: "Atari Jaguar", icon: "jag", },
 	JCD: { id: 77, name: "Atari Jaguar CD", icon: "jcd", },
 	LYNX: { id: 13, name: "Atari Lynx", icon: "lynx", },
 
 	// Sega
-	SG1K: { id: 33, name: "SG-1000", icon: "sg1k", },
-	SMS: { id: 11, name: "Master System", icon: "sms", },
-	GG: { id: 15, name: "Game Gear", icon: "gg", },
+	SG1K: { id: 33, name: "SG-1000", icon: "sg1k", 
+		regions: [
+			new MemRegion(0x00C400, 0x00FFFF, "System RAM Mirror", true, (x) => 0xC000 + (x % 0x400)),
+		]},
+	SMS: { id: 11, name: "Master System", icon: "sms", 
+		regions: [
+			new MemRegion(0x00E000, 0x00FFFF, "System RAM Mirror", true, (x) => x - 0x2000),
+		]},
+	GG: { id: 15, name: "Game Gear", icon: "gg", 
+		regions: [
+			new MemRegion(0x00E000, 0x00FFFF, "System RAM Mirror", true, (x) => x - 0x2000),
+		]},
 	GEN: { id: 1, name: "Genesis/Mega Drive", icon: "md", },
 	SEGACD: { id: 9, name: "Sega CD", icon: "scd", },
 	_32X: { id: 10, name: "32X", icon: "32x", },
@@ -102,7 +136,7 @@ const Console = Object.freeze({
 	CV: { id: 44, name: "ColecoVision", icon: "cv", },
 	ELEK: { id: 75, name: "Elektor TV Games Computer", icon: "elek",
 		regions: [
-    		new MemRegion(0x001400, 0x0014FF, "Unused / Mirror", true),
+			new MemRegion(0x001400, 0x0014FF, "Unused / Mirror", true),
 		]},
 	CHF: { id: 57, name: "Fairchild Channel F", icon: "chf", },
 	INTV: { id: 45, name: "Intellivision", icon: "intv", },
@@ -360,6 +394,8 @@ class AchievementSet
 			let asset;
 			switch (row[0][0])
 			{
+				case 'M': // local memory region
+					break;
 				case 'N': // local code note
 					notes.add(new CodeNote(row[1], row[2], null))
 					break;
@@ -419,24 +455,17 @@ class PointerTreeParser
 		const flatList = [];
 
 		// Create a root node that represents the "Base" of the note.
-		// IndentLevel -2 signifies it is the absolute root container.
 		const root = new NoteNode();
 		root.offset = "(Default)";
 		root.description = "Full Note";
 		root.indentLevel = -2;
 		root.content = noteText;
 
-		// Attempt to parse the size of the root data from the first line
 		if (lines.length > 0) root.size = PointerTreeParser.parseSizeFromDescription(lines[0]);
 
 		flatList.push(root);
 
-		// Always attempt to parse, even if "Pointer" isn't strictly in text, 
-		// because structure is determined by symbols.
-		// Stack used to track the current parent at each indentation level.
 		const stack = [];
-
-		// Logical Root acts as the parent for top-level pointer offsets (Indent 0).
 		const logicalRoot = new NoteNode();
 		logicalRoot.indentLevel = -1;
 		stack.push(logicalRoot);
@@ -444,23 +473,23 @@ class PointerTreeParser
 		let lastAddedNode = null;
 
 		// Regex to parse specific pointer lines.
-		// Group 1: Indentation (e.g., "+", ".+", "..", "++")
-		// Group 2: Sign (+ or -). Optional capture.
+		// Group 1: Indentation (traditional chars + whitespace + Unicode box drawing chars \u2500-\u257F)
+		// Group 2: Sign (+ or -). 
 		// Group 3: Hex value (0x...).
-		// Group 4: Separator (|, =, :). Optional capture.
+		// Group 4: Separator (|, =, :). 
 		// Group 5: Description/Remainder.
-		const offsetRegex = /^([.\+\s]*)([-+]?)(0x[0-9A-Fa-f]+)\s*([|=:])?\s*(.*)$/;
+		const offsetRegex = /^([.\+\s\u2500-\u257F]*)([-+]?)(0x[0-9A-Fa-f]+)\s*([|=:])?\s*(.*)$/;
 
-		// Helper regex to strip indentation characters from description lines.
-		const prefixStripRegex = /^([.\+\s]+)/;
+		// Helper regex to strip structural characters from description/enum lines.
+		const prefixStripRegex = /^([.\+\s\u2500-\u257F]+)/;
 
 		for (let i = 0; i < lines.length; i++)
 		{
-			const line = lines[i].trim(); // Trim for regex matching but handle indent carefully
+			// trimEnd instead of trim ensures leading spaces/visual depth are preserved for the regex
+			const line = lines[i].trimEnd(); 
 			if (!line) continue;
 
-			// We need raw indentation from original line logic, but regex handles it via capture group 1
-			const match = lines[i].trim().match(offsetRegex);
+			const match = line.match(offsetRegex);
 			let isNode = false;
 
 			if (match)
@@ -470,7 +499,7 @@ class PointerTreeParser
 				const separator = match[4];
 
 				const hasSign = !!sign; // e.g. +0x10 is definitely an offset
-				const hasIndent = indentStr.includes(".") || indentStr.includes("+");
+				const hasIndent = indentStr.length > 0;
 
 				if (hasSign)
 				{
@@ -478,46 +507,23 @@ class PointerTreeParser
 				}
 				else if (indentStr.includes("+"))
 				{
-					// Treat any indentation with '+' as a node
-					isNode = true;
+					isNode = true; // Treat any indentation with '+' as a node
 				}
 				else if (hasIndent)
 				{
-					// Indented with dots only, no sign (e.g. "..0x04").
-					// If separator is '|', it is a description -> Node.
+					// Indented with dots/spaces/box only, no sign (e.g. "..0x04").
 					if (separator === "|")
 					{
 						isNode = true;
 					}
-					// If separator is '=' or ':', it is a value definition -> Content.
 				}
 			}
 
 			if (isNode)
 			{
 				const indentStr = match[1];
-				let indent = 0;
-
-				if (indentStr.includes("+"))
-				{
-					// Standard/Mixed format
-					if (indentStr.includes("."))
-					{
-						// Dot-based (e.g., ".+") -> count dots
-						indent = (indentStr.match(/\./g) || []).length;
-					}
-					else
-					{
-						// Pure plus-based (e.g., "++") -> count pluses minus 1
-						indent = (indentStr.match(/\+/g) || []).length - 1;
-						if (indent < 0) indent = 0;
-					}
-				}
-				else
-				{
-					// Non-standard format: just dots.
-					indent = (indentStr.match(/\./g) || []).length;
-				}
+				// Natural depth tracking: visual prefix length dictates the hierarchy level
+				let indent = indentStr.length; 
 
 				const sign = match[2];
 				const hex = match[3];
@@ -564,18 +570,15 @@ class PointerTreeParser
 				if (lastAddedNode)
 				{
 					if (lastAddedNode.content.length > 0) lastAddedNode.content += "\n";
-					const cleanContentLine = lines[i].trim().replace(prefixStripRegex, "");
+					// Remove structural prefixes (like │ ) from description content to keep tooltips clean
+					const cleanContentLine = line.replace(prefixStripRegex, "").trimStart();
 					lastAddedNode.content += cleanContentLine;
 				}
 			}
 		}
 
-		// Flatten the tree for the list, excluding the logical root
 		PointerTreeParser.collectAllNodes(logicalRoot, flatList);
 		
-		// Add the base 'root' node we created at the start (Indent -2)
-		// But ensure it's not duplicated if logicalRoot children cover everything.
-		// Reconstruct final list: Root, then all children of LogicalRoot recursively.
 		const resultList = [root];
 		const parsedNodes = [];
 		PointerTreeParser.collectAllNodes(logicalRoot, parsedNodes);
@@ -623,7 +626,7 @@ class CodeNote
 	note = "";
 	author = "";
 	enum = null;
-	assetCount = 0;
+	assetList = [];
 	
 	// Holds the parsed tree structure of the note
 	noteNodes = [];
@@ -642,6 +645,7 @@ class CodeNote
 		this.noteNodes = PointerTreeParser.parseNoteText(note);
 	}
 
+	getHeader() { return this.note.split('\n')[0]; }
 	toRefString() { return `note-${this.addr}`; }
 
 	isArray() { return this.size >= (this.type ? this.type.bytes : 1) * 2; }
@@ -655,7 +659,7 @@ class CodeNote
 	{
 		const lines = this.note.toLowerCase().split('\n');
 		if (['ptr', 'pointer'].some(x => lines[0].includes(x))) return true;
-		if (lines.filter((x, i) => i > 0 && x.trim().startsWith('+')).length >= 2) return true;
+		if (lines.filter((x, i) => i > 0 && /^[.\+\s\u2500-\u257F]*\+/.test(x)).length >= 2) return true;
 		return false;
 	}
 
@@ -833,54 +837,41 @@ class CodeNote
 
 	static parseEnumerations(note)
 	{
-        // Allow dots in values (e.g., 0.5)
-        // Group 1: 0x1234 OR 0.5 OR -1.0
-		const ENUMERATION_RE = /((?:(?:0x)?[0-9a-f]+|[-+]?[0-9]*\.?[0-9]+)+)([^\w\d]*[^\w\d\s][^\w\d]*).+$/i;
+		// Regex explanation:
+		// Prefix: Allows whitespace, traditional tree chars, and Unicode box drawing (\u2500-\u257F)
+		// Group 1: The value (Hex like 0x10, Float like 0.5, or Dec like 16)
+		// Group 2: The delimiter (accepts =, :, |, or -)
+		// Group 3: The label (everything after the delimiter)
+		const ENUM_LINE_RE = /^[.\+\s\u2500-\u257F]*((?:(?:0x)?[0-9a-f]+|[-+]?[0-9]*\.?[0-9]+)+)\s*([:=|\-])\s*(.+)$/i;
 
 		const lines = note.split('\n');
-		let delim_count = new Map();
-		for (let i = 1; i < lines.length; i++)
-		{
-			const m = lines[i].trim().match(ENUMERATION_RE);
-			if (m == null) continue;
-			delim_count.set(m[2], (delim_count.get(m[2]) ?? 0) + 1);
-		}
-
-		if (delim_count.size == 0) return null;
-		let [delim, dcount] = [...delim_count.entries()].sort(([a, av], [b, bv]) => bv - av)[0];
-
 		let enumerations = [];
 		let isHex = false;
-		let linecount = 0;
+
 		for (let i = 1; i < lines.length; i++)
 		{
-			if (!lines[i].includes(delim)) continue;
-			linecount++;
+			const match = lines[i].match(ENUM_LINE_RE);
+			if (!match) continue;
 
-			let [lhs, ...rhs] = lines[i].split(delim);
-			rhs = rhs.join(delim).trim();
+			const literal = match[1];
+			const meaning = match[3].trim();
+			
+			let value;
+			if (literal.toLowerCase().startsWith('0x')) {
+				value = parseInt(literal, 16);
+				isHex = true;
+			} else if (literal.includes('.')) {
+				value = parseFloat(literal);
+			} else {
+				value = parseInt(literal, isHex ? 16 : 10);
+			}
 
-            // Match Hex OR Float
-			for (const m of lhs.matchAll(/\b(?:(0x[0-9a-f]+)|([-+]?[0-9]*\.?[0-9]+))\b/gi))
-			{
-                // m[0] is full match, m[1] is hex, m[2] is float/dec
-				enumerations.push({literal: m[0], meaning: rhs});
-				isHex ||= !!m[1]; // if 0x captured, it's hex
+			if (!isNaN(value)) {
+				enumerations.push({ literal, value, meaning });
 			}
 		}
 
-		if (dcount == 1 || linecount < 3) return null;
-
-		for (let e of enumerations) {
-            if (e.literal.includes('.') && !e.literal.startsWith('0x')) {
-                e.value = parseFloat(e.literal);
-            } else {
-			    e.value = Number.parseInt(e.literal, isHex ? 16 : 10);
-            }
-        }
-		
-        enumerations = enumerations.filter(x => !Number.isNaN(x.value));
-		return enumerations.length ? enumerations : null;
+		return enumerations.length >= 2 ? enumerations : null;
 	}
 }
 
@@ -924,102 +915,93 @@ class CodeNoteSet extends Array
 			return null; 
 		}
 
-		// 2. Resolve Base Note & Redirects
-		let note = this.get(baseAddr);
-        
-        // Handle "refer to" Redirects
-        let redirects = 0;
-        while (note && redirects < 5) {
-             const match = note.note.match(/refer to \$0x([0-9a-fA-F]+)/i);
-             if (match) {
-                 const target = parseInt(match[1], 16);
-                 const targetNote = this.get(target);
-                 if (targetNote) {
-                     note = targetNote;
-                     redirects++;
-                     continue;
-                 }
-             }
-             break;
-        }
-
-		if (!note) return null;
-
-        // 3. Traverse Note Node Tree
-        let currentNodes = null;
-        if (note.noteNodes) {
-             // Filter for nodes attached to the Logical Root (Indent -1).
-             // This correctly captures top-level nodes even if they start with indentation (e.g. ".+0x10").
-             currentNodes = note.noteNodes.filter(n => n.parent && n.parent.indentLevel === -1);
-        }
-
-        if (!currentNodes || currentNodes.length === 0) {
-            return null;
-        }
-
-        // Helper to parse offset string like "+0x10" or "-0x4" -> integer
-        const parseOff = (s) => {
-            let clean = s.replace(/[+\-\s]/g, '');
-            if (clean.toLowerCase().startsWith("0x")) clean = clean.substring(2);
-            let v = parseInt(clean, 16);
-            if (s.includes('-')) v = -v;
-            return isNaN(v) ? 0 : v;
-        };
-
-        let foundNode = null;
-
-        // Header for tooltip display
 		const base_hex = '0x' + baseAddr.toString(16);
 		const offsets_str = offsets.map(o => `+0x${o.toString(16)}`).join(' ');
 		const header = `[Indirect from ${base_hex} ${offsets_str}]\n`;
 
-        // Iterate through offsets (Intermediates -> Leaf)
-        for (let i = 0; i < offsets.length; i++) {
-            const offVal = offsets[i];
-            const isLeaf = (i === offsets.length - 1);
-            let match = null;
+		// 2. Resolve Base Note & Redirects
+		let note = this.get(baseAddr);
+		let redirects = 0;
+		while (note && redirects < 5) {
+			 const match = note.note.match(/refer to \$0x([0-9a-fA-F]+)/i);
+			 if (match) {
+				 const target = parseInt(match[1], 16);
+				 const targetNote = this.get(target);
+				 if (targetNote) {
+					 note = targetNote;
+					 redirects++;
+					 continue;
+				 }
+			 }
+			 break;
+		}
 
-            for (const n of currentNodes) {
-                const nOff = parseOff(n.offset);
-                
-                // Range check: Is the offset within [NodeStart, NodeStart + NodeSize)?
-                // n.size defaults to 1 if not specified, or parses from e.g. "[32 bytes]"
-                if (offVal >= nOff && offVal < nOff + n.size) {
-                    match = n;
-                    break;
-                }
-            }
+		// 3. Traverse Note Node Tree
+		let foundNode = null;
+		if (note && note.noteNodes) {
+			 // Filter for nodes attached to the Logical Root (Indent -1).
+			 let currentNodes = note.noteNodes.filter(n => n.parent && n.parent.indentLevel === -1);
+			 
+			 if (currentNodes && currentNodes.length > 0) {
+				 // Helper to parse offset string like "+0x10" or "-0x4" -> integer
+				 const parseOff = (s) => {
+					 let clean = s.replace(/[+\-\s]/g, '');
+					 if (clean.toLowerCase().startsWith("0x")) clean = clean.substring(2);
+					 let v = parseInt(clean, 16);
+					 if (s.includes('-')) v = -v;
+					 return isNaN(v) ? 0 : v;
+				 };
 
-            if (match) {
-                if (isLeaf) {
-                    // We found the node covering the final offset
-                    foundNode = match;
-                } else {
-                    // Intermediate offset: drill down to children
-                    if (match.children && match.children.length > 0) {
-                        currentNodes = match.children;
-                    } else {
-                        // Node matches, but has no children to satisfy deeper offsets.
-                        // We must return null to allow "missing note" feedback to fire.
-                        // Returning the parent node causes misleading tooltips and suppresses warnings.
-                        return null;
-                    }
-                }
-            } else {
-                // No node at this level covers the offset
-                return null;
-            }
-        }
+				 // Iterate through offsets (Intermediates -> Leaf)
+				 for (let i = 0; i < offsets.length; i++) {
+					 const offVal = offsets[i];
+					 const isLeaf = (i === offsets.length - 1);
+					 let match = null;
 
-        if (foundNode) {
-             let desc = foundNode.description || "";
-             // Append content (enumerations/details) if available, rather than choosing one or the other
-             if (foundNode.content) {
-                 if (desc.length > 0) desc += "\n";
-                 desc += foundNode.content;
-             }
-             return header + desc;
-        }
+					 for (const n of currentNodes) {
+						 const nOff = parseOff(n.offset);
+						 if (offVal >= nOff && offVal < nOff + n.size) {
+							 match = n;
+							 break;
+						 }
+					 }
+
+					 if (match) {
+						 if (isLeaf) {
+							 // We found the node covering the final offset
+							 foundNode = match;
+						 } else {
+							 // Intermediate offset: drill down to children
+							 if (match.children && match.children.length > 0) {
+								 currentNodes = match.children;
+							 } else {
+								 break; // Chain broke, rely on fallback
+							 }
+						 }
+					 } else {
+						 break; // Offset not found in tree, rely on fallback
+					 }
+				 }
+			 }
+		}
+
+		// Successfully traversed chain and found a documented inner node
+		if (foundNode) {
+			 let desc = foundNode.description || "";
+			 if (foundNode.content) {
+				 if (desc.length > 0) desc += "\n";
+				 desc += foundNode.content;
+			 }
+			 return header + desc;
+		}
+
+		// 4. FALLBACK: Direct Note Lookup
+		// If chain traversal failed (e.g. Array Indexing where the array base isn't a documented 
+		// child of the index note), check if the target address has its own distinct code note!
+		const directNote = this.get(addr);
+		if (directNote) {
+			return header + directNote.note;
+		}
 
 		return null;
 	}
@@ -1033,7 +1015,7 @@ class CodeNoteSet extends Array
 			return last_found_block.join('\n');
 		}
 
-		const offset_line_re = /^(\s*[\s\.+-]*)\+0x([a-f0-9]+)(.*)$/i;
+		const offset_line_re = /^([.\+\s\u2500-\u257F]*)\+0x([a-f0-9]+)(.*)$/i;
 		let context_indentation = -1;
 
 		for (const target_offset of offsets) {
@@ -1203,6 +1185,82 @@ function testCodeNotes()
 	console.log(fails + "/" + count + " failed")
 }
 
+class LookupEntry {
+	constructor(keyString, value, comment, keyValue, keyValueEnd) {
+		this.keyString = keyString;
+		this.value = value;
+		this.comment = comment;
+		this.keyValue = keyValue;
+		this.keyValueEnd = keyValueEnd;
+	}
+}
+
+class RichPresenceLookup {
+	#ref = '';
+	constructor(name) {
+		this.name = name;
+		this.format = "VALUE";
+		this.defaultVal = null;
+		this.entries = [];
+		this.#ref = crypto.randomUUID();
+	}
+	isFormatter() { return this.entries?.length === 0 && this.defaultVal === null; }
+	toRefString() { return `lookup-${this.#ref}`; }
+}
+
+class RichPresenceDisplayPart {
+	constructor(isMacro, text, parameter = "") {
+		this.isMacro = isMacro;
+		this.text = text;
+		this.parameter = parameter;
+		this.logic = null;
+		if (isMacro && parameter) {
+			try { this.logic = Logic.fromString(parameter, true); } catch(e) {}
+		}
+	}
+}
+
+class RichPresenceDisplayString {
+	#ref = '';
+	constructor() {
+		this.isDefault = false;
+		this.conditionStr = "";
+		this.condition = null; // AutoCR Logic object
+		this.parts = [];
+		this.#ref = crypto.randomUUID();
+	}
+	toRefString() { return `display-${this.#ref}`; }
+}
+
+class RichPresenceParser {
+	static tryParseUInt(input) {
+		let clean = input.trim();
+		if (clean.toLowerCase().startsWith("0x")) {
+			let val = parseInt(clean.substring(2), 16);
+			return isNaN(val) ? null : val;
+		}
+		let val = parseInt(clean, 10);
+		return isNaN(val) ? null : val;
+	}
+
+	static parseKeyString(keyString) {
+		let rangeParts = keyString.split('-');
+		if (rangeParts.length === 2) {
+			let start = this.tryParseUInt(rangeParts[0]);
+			let end = this.tryParseUInt(rangeParts[1]);
+			if (start !== null && end !== null && start <= end) {
+				return { start, end, valid: true };
+			}
+		} else {
+			let key = this.tryParseUInt(keyString);
+			if (key !== null) {
+				return { start: key, end: null, valid: true };
+			}
+		}
+		return { valid: false };
+	}
+}
+
 class LookupRange
 {
 	start = null;
@@ -1214,112 +1272,174 @@ class LookupRange
 		this.end = end;
 		this.value = value;
 	}
-
 	isFallback() { return this.start == null && this.end == null; }
 }
+
 class RichPresence
 {
 	text = "";
+	
+	// --- NEW ARCHITECTURE (RARP Editor) ---
+	scriptLookups = [];
+	displayStrings = [];
+
+	// --- OLD ARCHITECTURE ---
 	macros = {
-		// built-in macros
-		'Number': FormatType.VALUE,
-		'Unsigned': FormatType.UNSIGNED,
-		'Score': FormatType.SCORE,
-		'Centiseconds': FormatType.MILLISECS,
-		'Seconds': FormatType.SECS,
-		'Minutes': FormatType.MINUTES,
-		'Fixed1': FormatType.FIXED1,
-		'Fixed2': FormatType.FIXED2,
-		'Fixed3': FormatType.FIXED3,
-		'Float1': FormatType.FLOAT1,
-		'Float2': FormatType.FLOAT2,
-		'Float3': FormatType.FLOAT3,
-		'Float4': FormatType.FLOAT4,
-		'Float5': FormatType.FLOAT5,
-		'Float6': FormatType.FLOAT6,
-		'ASCIIChar': null,
-		'UnicodeChar': null,
+		'Number': FormatType.VALUE, 'Unsigned': FormatType.UNSIGNED, 'Score': FormatType.SCORE,
+		'Centiseconds': FormatType.MILLISECS, 'Seconds': FormatType.SECS, 'Minutes': FormatType.MINUTES,
+		'Fixed1': FormatType.FIXED1, 'Fixed2': FormatType.FIXED2, 'Fixed3': FormatType.FIXED3,
+		'Float1': FormatType.FLOAT1, 'Float2': FormatType.FLOAT2, 'Float3': FormatType.FLOAT3,
+		'Float4': FormatType.FLOAT4, 'Float5': FormatType.FLOAT5, 'Float6': FormatType.FLOAT6,
+		'ASCIIChar': FormatType.ASCIICHAR, 'UnicodeChar': FormatType.UNICODECHAR,
 	};
 	custom_macros = new Set();
 	lookups = new Map();
 	display = [];
+
 	constructor() {  }
 
 	static fromText(txt)
 	{
-		let richp = new RichPresence();
-		richp.text = txt;
+		let rp = new RichPresence();
+		rp.text = txt;
 
-		let obj = null;
-		function structCleanup(next)
-		{
-			if (obj && obj.type == 'display')
-				return;
-			else if (obj && obj.type == 'macro')
-			{
-				richp.custom_macros.add(obj.name);
-				richp.macros[obj.name] = obj.param;
+		let lines = txt.split(/\r\n|\n|\r/);
+		let currentSection = null;
+		let currentLookup = null;
+		let currentComment = null;
+
+		for (let line of lines) {
+			let trimmed = line.trimStart();
+
+			if (trimmed.includes('//')) {
+				let commentIndex = trimmed.indexOf('//');
+				currentComment = trimmed.substring(commentIndex + 2).trim();
+				trimmed = trimmed.substring(0, commentIndex).trim();
 			}
-			else if (obj && obj.type == 'lookup')
-				richp.lookups.set(obj.name, obj.param);
-			obj = next;
-		}
-		
-		const lines = txt.match(/[^\r\n]+/g);
-		for (let line of lines)
-		{
-			line = line.split('//', 1)[0].trim();
 
-			if (line.length == 0) continue; // blank lines skipped
-			else if (obj && obj.type == 'display')
-			{ // display must be last, so no need to parse other line starts
-				if (line.startsWith('?'))
-				{
-					let parts = line.match(/^\?(.+?)\?(.*)$/);
-					if (parts == null)
-						throw new LogicParseError('rich presence (malformed conditional display)', line);
-					richp.display.push({
-						condition: Logic.fromString(parts[1], false),
-						string: parts[2],
-					});
+			if (!trimmed) continue;
+
+			if (trimmed.startsWith('Lookup:')) {
+				currentSection = 'Lookup';
+				let name = trimmed.substring(7).trim();
+				currentLookup = new RichPresenceLookup(name);
+				rp.scriptLookups.push(currentLookup);
+				currentComment = null;
+				continue;
+			}
+			if (trimmed.startsWith('Format:')) {
+				currentSection = 'Format';
+				let name = trimmed.substring(7).trim();
+				currentLookup = rp.scriptLookups.find(l => l.name.toLowerCase() === name.toLowerCase());
+				if (!currentLookup) {
+					currentLookup = new RichPresenceLookup(name);
+					rp.scriptLookups.push(currentLookup);
 				}
-				else richp.display.push({
-					condition: null, 
-					string: line,
-				});
+				currentComment = null;
+				continue;
 			}
-			else if (line.startsWith('Format:'))
-				structCleanup({ type: 'macro', name: line.substring(7), param: null, });
-			else if (line.startsWith('Lookup:'))
-				structCleanup({ type: 'lookup', name: line.substring(7), param: [], });
-			else if (line.startsWith('Display:'))
-				structCleanup({ type: 'display', });
-			else if (obj && obj.type == 'macro')
-			{
-				if (line.startsWith('FormatType'))
-					obj.param = FormatTypeMap[line.substring(11).toUpperCase()];
+			if (trimmed.startsWith('Display:')) {
+				currentSection = 'Display';
+				currentLookup = null;
+				currentComment = null;
+				continue;
 			}
-			else if (obj && obj.type == 'lookup')
-			{
-				let [inps, val] = line.split('=');
-				for (const inp of inps.split(','))
-				{
-					if (inp == '*') obj.param.push(new LookupRange(null, null, val));
-					else
-					{
-						let rv = inp.split('-');
-						obj.param.push(new LookupRange(rv[0], rv[rv.length - 1], val));
+
+			if (currentSection === 'Lookup' && currentLookup) {
+				let parts = trimmed.split('=');
+				if (parts.length >= 2) {
+					// Join back in case value had an '='
+					let valStr = parts.slice(1).join('=');
+					if (parts[0].trim() === '*') {
+						currentLookup.defaultVal = valStr;
+					} else {
+						// Handle comma-separated keys (e.g. 0x1,0x2=Value)
+						let keys = parts[0].split(',');
+						for (let rawKey of keys) {
+							let keyString = rawKey.trim();
+							let parsed = RichPresenceParser.parseKeyString(keyString);
+							if (parsed.valid) {
+								currentLookup.entries.push(new LookupEntry(keyString, valStr, currentComment, parsed.start, parsed.end));
+							}
+						}
 					}
 				}
+			} else if (currentSection === 'Format' && currentLookup) {
+				if (trimmed.startsWith('FormatType=')) {
+					currentLookup.format = trimmed.substring(11).trim();
+				}
+			} else if (currentSection === 'Display') {
+				let ds = new RichPresenceDisplayString();
+				let displayContent = trimmed;
+
+				if (trimmed.startsWith('?')) {
+					let qParts = trimmed.split('?');
+					if (qParts.length >= 3) {
+						ds.conditionStr = qParts[1];
+						try { ds.condition = Logic.fromString(qParts[1], false); } catch(e) {}
+						displayContent = qParts.slice(2).join('?'); // Everything after 2nd '?'
+					} else {
+						ds.conditionStr = qParts[1];
+						displayContent = "";
+					}
+				} else {
+					ds.isDefault = true;
+				}
+
+				// Extract Macros and Static text parts
+				let regex = /(@([^()]+)\(([^)]*)\))/g;
+				let lastIndex = 0;
+				let match;
+
+				while ((match = regex.exec(displayContent)) !== null) {
+					if (match.index > lastIndex) {
+						ds.parts.push(new RichPresenceDisplayPart(false, displayContent.substring(lastIndex, match.index)));
+					}
+					ds.parts.push(new RichPresenceDisplayPart(true, match[2], match[3]));
+					lastIndex = regex.lastIndex;
+				}
+
+				if (lastIndex < displayContent.length) {
+					ds.parts.push(new RichPresenceDisplayPart(false, displayContent.substring(lastIndex)));
+				}
+
+				rp.displayStrings.push(ds);
 			}
 		}
 
-		// process all lookups in each display
-		for (let d of richp.display)
-			d.lookups = [...d.string.matchAll(/@([ _a-z][ _a-z0-9]*)\((.+?)\)/gi).map((x) => ({
-				name: x[1],
-				calc: Logic.fromString(x[2], true),
-			}))];
-		return richp;
+		// 1. Shim Custom Macros and Formatters
+		rp.scriptLookups.forEach(l => {
+			if (l.entries.length === 0 && l.defaultVal === null) {
+				rp.custom_macros.add(l.name);
+				rp.macros[l.name] = FormatTypeMap[l.format.toUpperCase()] || null;
+			}
+		});
+
+		// 2. Shim Lookups mapping
+		rp.scriptLookups.filter(l => l.entries.length > 0 || l.defaultVal !== null).forEach(l => {
+			let ranges = [];
+			if (l.defaultVal !== null) {
+				ranges.push(new LookupRange(null, null, l.defaultVal));
+			}
+			l.entries.forEach(e => {
+				ranges.push(new LookupRange(e.keyValue, e.keyValueEnd, e.value));
+			});
+			rp.lookups.set(l.name, ranges);
+		});
+
+		// 3. Shim Display array
+		rp.display = rp.displayStrings.map(ds => {
+			return {
+				condition: ds.condition,
+				string: ds.parts.map(p => p.isMacro ? `@${p.text}(${p.parameter})` : p.text).join(''),
+				lookups: ds.parts.filter(p => p.isMacro).map(p => {
+					let calcLogic = null;
+					try { calcLogic = Logic.fromString(p.parameter, true); } catch(e) {}
+					return { name: p.text, calc: calcLogic };
+				}).filter(x => x.calc !== null)
+			};
+		});
+
+		return rp;
 	}
 }

@@ -32,8 +32,10 @@ const ReqFlag = Object.freeze({
 	MEASUREDP:   { name: "Measured%",    prefix: "G:", chain: false, scalable: false, cmod: false, },
 	MEASUREDIF:  { name: "MeasuredIf",   prefix: "Q:", chain: false, scalable: false, cmod: false, },
 	TRIGGER:     { name: "Trigger",      prefix: "T:", chain: false, scalable: false, cmod: false, },
-	REMEMBER:    { name: "Remember",     prefix: "K:", chain: false, scalable: true , cmod: false, },
+	REMEMBER:    { name: "Remember",     prefix: "K:", chain: true,  scalable: true , cmod: false, },
 });
+
+const PAUSERESET = new Set([ReqFlag.RESETIF, ReqFlag.RESETNEXTIF, ReqFlag.PAUSEIF]);
 
 const MemSize = Object.freeze({
 	BYTE:     { name: "8-bit",        prefix: "0xH", bytes: 1, maxvalue: 0xFF, },
@@ -89,6 +91,8 @@ const FormatType = Object.freeze({
 	FLOAT4:        { name: "Float4", type: "FLOAT4", category: "value", },
 	FLOAT5:        { name: "Float5", type: "FLOAT5", category: "value", },
 	FLOAT6:        { name: "Float6", type: "FLOAT6", category: "value", },
+	ASCIICHAR:     { name: "ASCIIChar", type: "ASCIICHAR", category: "value", },
+	UNICODECHAR:   { name: "UnicodeChar", type: "UNICODECHAR", category: "value", },
 });
 
 const ReqTypeMap = Object.fromEntries(
@@ -139,13 +143,14 @@ const ReqFlagWidth = Math.max(...Object.values(ReqFlag).map((x) => x.name.length
 const MemSizeWidth = Math.max(...Object.values(MemSize).map((x) => x.name.length));
 
 class LogicParseError extends Error {
-	constructor(type, mem) {
+	constructor(type, mem, from) {
 		super(`Failed to parse ${type}: ${mem}`);
 		this.name = 'LogicParseError';
+		this.from = from;
 	}
 }
 
-const OPERAND_RE = /^(([~dpbv]?)((?:0x)+[G-Z ]?|f[A-Z])(?:0x)*([0-9A-F]{1,8}))|(([fv]?)([-+]?\d+(?:\.\d+)?))|([G-Z ]?([0-9A-F]+))|({recall})$/i;
+const OPERAND_RE = /^(([~dpbv]?)((?:0x)+[G-Z ]?|f[A-Z])(?:0x)*([0-9A-F]{1,8}))|(([fv]?)([-+]?[\d\.]+))|([G-Z ]?([0-9A-F]+))|({recall})$/i;
 class ReqOperand
 {
 	type;
@@ -192,7 +197,7 @@ class ReqOperand
 			else if (match[10])
 				return new ReqOperand({ type: ReqType.RECALL, });
 		}
-		catch (e) { throw new LogicParseError('operand', def); }
+		catch (e) { console.error('operand', def, e); }
 	}
 
 	static sameValue(a, b)
@@ -229,7 +234,7 @@ const CMP_REVERSE = new Map([["=", "!="], ["!=", "="], [">", "<="], ["<", ">="],
 
 // original regex failed on "v-1"
 // const REQ_RE = /^([A-Z]:)?(.+?)(?:([!<>=+\-*/&\^%]{1,2})(.+?))?(?:\.(\d+)\.)?$/;
-const OPERAND_PARSING = "[~dpbvf]?(?:(?:0x)+[G-Z ]?|f[A-Z])(?:0x)*[0-9A-F]{1,8}|[fv]?[-+]?\\d+(?:\\.\\d+)?|[G-Z ]?[0-9A-F]+|{recall}";
+const OPERAND_PARSING = "[~dpbvf]?(?:(?:0x)+[G-Z ]?|f[A-Z])(?:0x)*[0-9A-F]{1,}|[fv]?[-+]?[\\d\\.]+?|[G-Z ]?[0-9A-F]+|{recall}";
 const REQ_RE = new RegExp(`^([A-Z]:)?(${OPERAND_PARSING})(?:([!<>=+\\-*/&\\^%]{1,2})(${OPERAND_PARSING}))?(?:\\.(\\d+)\\.)?$`, "i");
 class Requirement
 {
@@ -299,7 +304,7 @@ class Requirement
 
 			if (match[5]) req.hits = +match[5];
 		}
-		catch (e) { throw new LogicParseError('requirement', def); }
+		catch (e) { console.error('requirement', def, e); }
 		return req;
 	}
 
@@ -345,7 +350,7 @@ class Logic
 			}
 			logic.mem = def;
 		}
-		catch (e) { throw new LogicParseError('logic', def); }
+		catch (e) { console.error('logic', def, e); }
 		return logic;
 	}
 
@@ -544,12 +549,8 @@ class ConditionFormatter
         if (!text) return null;
         const lines = text.split(/\r\n|\r|\n/);
         
-        // Regex matches: 
-        // 1. "0x10 = Label" (Hex)
-        // 2. "16 : Label" (Dec)
-        // 3. "0.5 = Label" (Float)
-        // 4. "-1.0 = Label" (Signed Float)
-        const regex = /^\s*((?:0x[0-9a-fA-F]+)|(?:[-+]?[0-9]*\.?[0-9]+))\s*[:=]\s*(.+)$/;
+        // Updated regex \s*[:=|\-]\s* to support -, | and :
+        const regex = /^\s*((?:0x[0-9a-fA-F]+)|(?:[-+]?[0-9]*\.?[0-9]+))\s*[:=|\-]\s*(.+)$/;
         
         // Tolerance for float comparison
         const EPSILON = 0.000001; 
@@ -585,7 +586,8 @@ class ConditionFormatter
     static parseBitLabelFromText(text, bitIndex) {
         if (!text) return null;
         const lines = text.split(/\r\n|\r|\n/);
-        const regex = new RegExp(`^\\s*Bit\\s*${bitIndex}\\s*[:=]\s*(.+)`, "i");
+        // Updated regex to support -, | and :
+        const regex = new RegExp(`^\\s*Bit\\s*${bitIndex}\\s*[:=|\\-]\\s*(.+)`, "i");
 
         for (const line of lines) {
             const match = line.match(regex);
@@ -710,24 +712,41 @@ class ConditionFormatter
 			let scan = rowIndex - 1;
 			while (scan >= 0)
 			{
-				if (scan >= conditions.length) {
-					scan--;
-					continue;
-				}
 				const prevCond = conditions[scan];
-				if (prevCond.flag && prevCond.flag.name === "AddAddress")
+				if (prevCond && prevCond.flag && prevCond.flag.name === "AddAddress")
 				{
-					chainStack.push(prevCond.lhs.value);
+                    // Push to start to maintain top-to-bottom order
+					chainStack.unshift({
+                        isMem: prevCond.lhs.type && prevCond.lhs.type.addr,
+                        value: prevCond.lhs.value
+                    });
 					scan--;
 				}
 				else break;
 			}
 
+            // Remove Array Indexing (AddAddresses with no note)
+            while (chainStack.length > 1) {
+                const first = chainStack[0];
+                const baseAddrNum = parseHex(LogicFormatter.normalizeAddress(first.value));
+                if (!first.isMem || !ConditionFormatter.getEffectiveNote(notesLookup, baseAddrNum)) {
+                    chainStack.shift();
+                } else {
+                    break;
+                }
+            }
+            if (chainStack.length === 1) {
+                const first = chainStack[0];
+                const baseAddrNum = parseHex(LogicFormatter.normalizeAddress(first.value));
+                if (!first.isMem || !ConditionFormatter.getEffectiveNote(notesLookup, baseAddrNum)) {
+                    chainStack.shift();
+                }
+            }
+
 			if (chainStack.length > 0)
 			{
-				const baseAddrVal = chainStack.pop();
-				const normalizedBase = LogicFormatter.normalizeAddress(baseAddrVal);
-				const baseAddrNum = parseHex(normalizedBase);
+				const baseNode = chainStack.shift();
+				const baseAddrNum = parseHex(LogicFormatter.normalizeAddress(baseNode.value));
 				
 				const baseNote = ConditionFormatter.getEffectiveNote(notesLookup, baseAddrNum);
 
@@ -738,7 +757,8 @@ class ConditionFormatter
 
 					while (chainStack.length > 0)
 					{
-						const offsetVal = chainStack.pop(); 
+						const offsetNode = chainStack.shift(); 
+                        const offsetVal = parseHex(LogicFormatter.normalizeAddress(offsetNode.value));
 						let match = null;
 						for (const node of currentLevelNodes)
 						{
