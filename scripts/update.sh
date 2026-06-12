@@ -1,8 +1,8 @@
 #!/bin/bash
 
 export URL="https://raw.githubusercontent.com/authorblues/retroachievements"
-export OLD_SHA="4302f2a2bb82c0a2ff47a5ca4714f4ddb5424bea"
-export NEW_SHA="a9cc2c904ea50525ff1cc6e4cdb1369fd82c6b91"
+export OLD_SHA="a9cc2c904ea50525ff1cc6e4cdb1369fd82c6b91"
+export NEW_SHA="7eec326cfaceff8a08161449c0d3d5636a9afc1f"
 
 export MSG=$(git log -1 --pretty=%B)
 if [[ $MSG != "update to commit $OLD_SHA files" ]]; then
