@@ -1,8 +1,8 @@
 #!/bin/bash
 
-export URL="https://raw.githubusercontent.com/authorblues/retroachievements"
-export OLD_SHA="a9cc2c904ea50525ff1cc6e4cdb1369fd82c6b91"
-export NEW_SHA="7eec326cfaceff8a08161449c0d3d5636a9afc1f"
+export URL="https://raw.githubusercontent.com/RetroAchievements/AutoCR"
+export OLD_SHA="7eec326cfaceff8a08161449c0d3d5636a9afc1f"
+export NEW_SHA="32ba14360318cdd028bb532b61fc19a537e486d1"
 
 export MSG=$(git log -1 --pretty=%B)
 if [[ $MSG != "update to commit $OLD_SHA files" ]]; then
@@ -12,7 +12,7 @@ fi
 
 for file in "achievements.js" "logic.js" "feedback.js"; do
     rm -f ${file}
-    wget -O "${file}" "${URL}/${NEW_SHA}/AutoCR/js/${file}"
+    curl -L -H "Cache-Control: no-cache" -o "${file}" "${URL}/${NEW_SHA}/js/${file}"
 done
 
 if git status --porcelain | grep -q .; then
